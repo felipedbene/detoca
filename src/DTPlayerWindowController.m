@@ -48,7 +48,10 @@ static NSString *DTFormatMs(long long ms)
 - (void)tick;
 - (void)applySnapshot:(DTNowSnapshot *)snap;
 - (void)updateCoverForSnapshot:(DTNowSnapshot *)snap;
+- (void)updateFooter;
+- (void)wakeAndPlay;
 - (DTNowHandler)applyHandler;
+- (DTNowHandler)wakeHandler;
 - (NSString *)streamSelector;
 @end
 
@@ -357,12 +360,32 @@ static NSString *DTFormatMs(long long ms)
 {
     // Be honest that state is polled (~2 s), not live: pulse "(polling…)" each
     // cycle, visible long enough to read even though the LAN round-trip is fast.
-    [_pollLabel setStringValue:@"(polling…)"];
-    [NSObject cancelPreviousPerformRequestsWithTarget:self
-                                             selector:@selector(clearPollLabel)
-                                               object:nil];
-    [self performSelector:@selector(clearPollLabel) withObject:nil afterDelay:0.8];
+    // But when the radio is asleep (device idle), the footer carries a persistent
+    // "play pra acordar" nudge instead — don't stomp it with the pulse.
+    if (!(_last != nil && [_last deviceIsIdle])) {
+        [_pollLabel setStringValue:@"(polling…)"];
+        [NSObject cancelPreviousPerformRequestsWithTarget:self
+                                                 selector:@selector(clearPollLabel)
+                                                   object:nil];
+        [self performSelector:@selector(clearPollLabel) withObject:nil afterDelay:0.8];
+    }
     [_api fetchNow:[self applyHandler]];
+}
+
+// The footer doubles as the device-state indicator: when gopher-spot isn't the
+// current player (device idle), the audio stream carries nothing, so nudge the
+// user to press play (which wakes it). Otherwise it's the transient poll pulse.
+- (void)updateFooter
+{
+    if (_last != nil && [_last deviceIsIdle]) {
+        [NSObject cancelPreviousPerformRequestsWithTarget:self
+                                                 selector:@selector(clearPollLabel)
+                                                   object:nil];
+        [_pollLabel setStringValue:@"rádio dormindo — play pra acordar"];
+        [_pollLabel setTextColor:[DTTheme accent]];
+    } else {
+        [_pollLabel setTextColor:[DTTheme textMuted]];
+    }
 }
 
 - (DTNowHandler)applyHandler
@@ -423,6 +446,9 @@ static NSString *DTFormatMs(long long ms)
 
     // Album cover (fetched only when album_id changes; placeholder otherwise).
     [self updateCoverForSnapshot:snap];
+
+    // Device-state footer (idle => "play pra acordar").
+    [self updateFooter];
 
     // Play/pause glyph.
     [_playButton setTitle:(snap.state == DTPlaybackPlaying ? @"❙❙" : @"▶")];
@@ -504,8 +530,41 @@ static NSString *DTFormatMs(long long ms)
     } else {
         [self ensureAudio];
         [_playButton setTitle:@"❙❙"];
-        [_api play:[self applyHandler]];
+        // If the radio drifted to another device (or librespot dropped and the
+        // device fell idle), a plain play won't move audio back to our stream.
+        // Transfer + resume with wake?play=1 instead. This is the S3 case: ffmpeg
+        // respawns in ~4 s but the device falls idle — pressing play revives it.
+        if (_last != nil && [_last deviceIsIdle]) {
+            [self wakeAndPlay];
+        } else {
+            [_api play:[self applyHandler]];
+        }
     }
+}
+
+- (void)wakeAndPlay
+{
+    [_pollLabel setStringValue:@"acordando o rádio…"];
+    [_pollLabel setTextColor:[DTTheme accent]];
+    [_api wakeAndPlay:[self wakeHandler]];
+}
+
+- (DTNowHandler)wakeHandler
+{
+    DTPlayerWindowController *me = self;
+    return [[^(DTNowSnapshot *snap, DTSpotAPIError *error) {
+        if (error != nil) {
+            // no_device: librespot is down, nothing to wake — say so honestly.
+            if ([[error code] isEqualToString:@"no_device"]) {
+                [me->_pollLabel setStringValue:@"rádio fora do ar"];
+                [me->_pollLabel setTextColor:[DTTheme error]];
+            }
+            return;
+        }
+        if (snap != nil) {
+            [me applySnapshot:snap];
+        }
+    } copy] autorelease];
 }
 
 - (void)playNext

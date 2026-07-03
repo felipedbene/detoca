@@ -205,6 +205,43 @@ Verified over SSH on the 10.6 target (agent-permitting):
 - Player, playlist and Preferences all render in the dark/amber skin
   (screenshots), no clipping. `leaks` = **0** on the running app.
 
+### The full Radinho (fio 10)
+
+Data layer unit-tested (`SpotAPITests`: track/playlist list parsing incl. empty +
+UTF-8, the monotonic-ts guard, `/now` album_id + device, cover cache key). The
+rest driven over SSH against the live API (`10.0.100.112:70`) + `screencapture`.
+
+Verified over SSH on the 10.6 target:
+
+- `make` zero warnings; `make test` **92 green** (+14). `leaks` = **0** after
+  exercising cover changes, queue thumbnails, playlist pagination, mode switches.
+- Player: the cover renders on the left and **changes with the album** ("Vai
+  Passar" → "Yolanda" → "Não Deixe O Samba Morrer" across shots); title and
+  artist on separate lines, no middle-truncation.
+- Playlist window: the Busca layout, Fila with the real 20-track queue and 64px
+  thumbnails, and Playlists listing the full 155 (paged + cached), UTF-8 intact.
+- Wire formats match: now/queue/search/playlists; `/cover` returns JPEG (`FF D8`)
+  and a bad size returns a text error; `wake?play=1` returns a valid `/now`.
+
+Manual gate (Felipe, at the MacBook2,1 — SSH can't synthesize a real key-window
+text entry / double-click / device handoff):
+
+- [ ] **Cover by eye + disk** — watch the cover change as tracks change; then
+      relaunch (or pull the network after a first play) and confirm the cover
+      still loads — from `~/Library/Caches/dev.debene.detoca/covers/`, no fetch.
+- [ ] **Search → play / enqueue** — Cmd-Y, type a query: results with thumbnails;
+      Return / ▶ Tocar plays; ＋ Fila enqueues ("✓ na fila", shows up in Fila
+      within ~1–2 s).
+- [ ] **Fila** — the queue matches "up next"; an empty queue shows the radio state.
+- [ ] **Playlists** — pick a known playlist → it plays and next/prev follow the
+      playlist order (context play), no track drill-down offered.
+- [ ] **Wake** — stop playback by hand (or transfer to the phone) so `/now` reports
+      device idle: the footer reads "rádio dormindo — play pra acordar"; press play
+      → the Radinho revives (`wake?play=1`). With librespot down, play shows
+      "rádio fora do ar", no crash.
+- [ ] **ts guard** — the seek bar never jumps backwards across polls.
+- [ ] **Media keys** — F7/F8/F9 still drive the player's transport.
+
 ## Verified on hardware (fio 1)
 
 Built and run on the actual target (Mac OS X 10.6.8, MacBook2,1, i386,

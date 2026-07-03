@@ -1,0 +1,8 @@
+# Build products
+DeToca.app/
+Tests.octest/
+spikeb
+*.o
+
+# macOS cruft
+.DS_Store

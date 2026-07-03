@@ -21,6 +21,8 @@
 #define DT_STREAM_SELECTOR_KEY @"DTSpotStreamSelector"
 #define DT_STREAM_SELECTOR_DEFAULT @"/spot/stream.pls"
 
+NSString * const DTPlayerNowChangedNotification = @"DTPlayerNowChanged";
+
 static long long DTNowEpochMs(void)
 {
     return (long long)([[NSDate date] timeIntervalSince1970] * 1000.0);
@@ -389,9 +391,21 @@ static NSString *DTFormatMs(long long ms)
 
 - (void)applySnapshot:(DTNowSnapshot *)snap
 {
+    // Detect a track/queue change vs. the previous snapshot before we replace it,
+    // so the playlist window can refresh "up next" off this same poll.
+    NSString *oldTrackId = [[_last.trackId retain] autorelease];
+    NSInteger oldQueueLen = (_last != nil) ? _last.queueLen : -1;
+
     [snap retain];
     [_last release];
     _last = snap;
+
+    BOOL trackChanged = ![oldTrackId isEqualToString:snap.trackId] &&
+                        !(oldTrackId == nil && snap.trackId == nil);
+    if (trackChanged || oldQueueLen != snap.queueLen) {
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName:DTPlayerNowChangedNotification object:self];
+    }
 
     // Now-playing text — title and artist on their own lines (the cover carries
     // the album, so no album line and no middle-truncation of a joined string).

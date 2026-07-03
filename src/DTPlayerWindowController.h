@@ -21,6 +21,11 @@
 @class DTNowSnapshot;
 @class DTCoverCache;
 
+// Posted (object = the controller) after a /now poll whose track_id or queue_len
+// changed from the previous snapshot. The playlist window listens so it can
+// refresh its "up next" queue off the player's existing poll — no second timer.
+extern NSString * const DTPlayerNowChangedNotification;
+
 @interface DTPlayerWindowController : NSObject
     <NSWindowDelegate, DTAudioStreamerDelegate, GopherRequestDelegate> {
     NSPanel         *_panel;

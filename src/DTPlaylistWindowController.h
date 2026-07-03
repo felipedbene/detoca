@@ -1,29 +1,43 @@
 //
 //  DTPlaylistWindowController.h
-//  DeToca — fio 9
+//  DeToca — fio 9, rebuilt fio 10
 //
-//  The WinAmp-style playlist window: a clean search that returns a flat, playable
-//  track list — no drilling through gopher menus. Search goes to /spot/search
-//  (parsed with GopherMenuParser); a result track's selector is /spot/track/<id>,
-//  from which we derive the direct play action /spot/play?uri=spotify:track:<id>.
-//  Activating a row fires that action; the player window reflects it on its next
-//  /now poll.
+//  The playlist window, now organized in modes via a segmented control:
+//    • Busca — search the /spot/api/1 machine API (no more human-menu parsing);
+//      each result plays or enqueues (queue/add) and shows a 64 px thumbnail.
+//    • Fila  — the live "up next" queue with 64 px thumbnails, refreshed off the
+//      player's existing /now poll (DTPlayerNowChangedNotification), never a new
+//      timer; empty queue shows the automatic-radio state.
+//    • Playlists — added in fio 10/4 (list + play-by-context).
 //
-//  Real "up next" queue contents aren't in the v1 API (only queue_len) — that
-//  arrives with fio S2; until then this window shows search results.
+//  Rows draw through DTTrackCell; thumbnails come from the shared cover cache.
 //
 
 #import <Cocoa/Cocoa.h>
-#import "GopherRequest.h"
+
+@class DTSpotAPI;
+@class DTCoverCache;
 
 @interface DTPlaylistWindowController : NSObject
-    <NSWindowDelegate, GopherRequestDelegate, NSTableViewDataSource, NSTableViewDelegate> {
-    NSPanel        *_panel;
-    NSTextField    *_searchField;
-    NSTableView    *_table;
-    NSMutableArray *_tracks;       // of NSDictionary {title, play}
-    GopherRequest  *_searchReq;
-    NSInteger       _playingRow;   // last-activated row, or -1
+    <NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate> {
+    NSPanel            *_panel;
+    DTSpotAPI          *_api;
+    DTCoverCache       *_coverCache;
+
+    NSSegmentedControl *_modeControl;
+    NSTextField        *_searchField;
+    NSScrollView       *_scroll;
+    NSTableView        *_table;
+    NSButton           *_playButton;      // Tocar (Busca)
+    NSButton           *_enqueueButton;   // Enfileirar (Busca)
+    NSTextField        *_statusLabel;     // transient feedback (bottom)
+    NSTextField        *_emptyLabel;      // centered "automatic radio" empty state
+
+    NSMutableArray     *_searchRows;      // of NSMutableDictionary {track,artist,uri,albumId,image}
+    NSMutableArray     *_queueRows;       // same shape, no uri action
+    NSInteger           _mode;            // DTPlaylistModeSearch | DTPlaylistModeQueue
+    NSUInteger          _searchGen;       // drops stale search responses
+    BOOL                _queueLoaded;     // fetched at least once this session
 }
 
 - (void)show;

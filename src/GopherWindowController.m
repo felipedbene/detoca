@@ -7,7 +7,7 @@
 #import "GopherResource.h"
 #import "GopherItem.h"
 #import "GopherMenuParser.h"
-#import "GopherTableView.h"
+#import "GopherMenuView.h"
 #import "AttributedStringRenderer.h"
 #import "DTFontManager.h"
 #import "StreamRouting.h"
@@ -24,7 +24,6 @@
 - (NSScrollView *)makeScrollViewFilling:(NSRect)rect;
 - (void)buildMenuView;
 - (void)buildTextViewWithAttributedString:(NSAttributedString *)attr;
-- (void)openSelectedItem:(id)sender;
 @end
 
 @implementation GopherWindowController
@@ -152,44 +151,14 @@
 
 - (void)buildMenuView
 {
-    NSRect rect = [_bodyArea bounds];
-    NSScrollView *sv = [self makeScrollViewFilling:rect];
-    [sv setHasHorizontalScroller:NO];
-
-    NSSize cs = [sv contentSize];
-    GopherTableView *table = [[[GopherTableView alloc]
-        initWithFrame:NSMakeRect(0, 0, cs.width, cs.height)] autorelease];
-
-    NSTableColumn *col = [[[NSTableColumn alloc] initWithIdentifier:@"item"] autorelease];
-    [col setWidth:cs.width];
-    [col setEditable:NO];
-    [table addTableColumn:col];
-    [table setHeaderView:nil];
-    // Row height tracks the monospace font's line height, plus a few pixels so
-    // NSTextFieldCell doesn't clip descenders (the "low on ink" look). Intercell
-    // spacing is zero so ASCII-art info lines (boxes, rules) still connect
-    // vertically with only that small in-cell padding between them.
-    NSFont *menuFont = [DTFontManager documentFont];
-    NSLayoutManager *lm = [[NSLayoutManager alloc] init];
-    CGFloat lineH = [lm defaultLineHeightForFont:menuFont];
-    [lm release];
-    [table setRowHeight:ceil(lineH) + 3.0];
-    [table setIntercellSpacing:NSMakeSize(0.0, 0.0)];
-    // Dark terminal theme: menus match text documents.
-    [table setBackgroundColor:[NSColor blackColor]];
-    [table setUsesAlternatingRowBackgroundColors:NO];
-    [table setGridStyleMask:NSTableViewGridNone];
-    [table setColumnAutoresizingStyle:NSTableViewLastColumnOnlyAutoresizingStyle];
-    [table setAllowsMultipleSelection:NO];
-    [table setDataSource:self];
-    [table setDelegate:self];
-    [table setTarget:self];
-    [table setDoubleAction:@selector(openSelectedItem:)];
-
-    [sv setDocumentView:table];
-    [_bodyArea addSubview:sv];
-    _tableView = table;
-    [[self window] makeFirstResponder:table];
+    GopherMenuView *menu = [[[GopherMenuView alloc]
+        initWithFrame:[_bodyArea bounds]] autorelease];
+    [menu setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
+    [menu setMenuDelegate:self];
+    [_bodyArea addSubview:menu];
+    _menuView = menu;
+    [_menuView setItems:_items];
+    [[self window] makeFirstResponder:(NSView *)[_menuView tableView]];
 }
 
 - (void)buildTextViewWithAttributedString:(NSAttributedString *)attr
@@ -263,7 +232,6 @@
 
     [_statusLabel setStringValue:@"Bookmarks (local gophermap)"];
     [self buildMenuView];
-    [_tableView reloadData];
 }
 
 #pragma mark - GopherRequestDelegate (main thread)
@@ -276,7 +244,6 @@
         [_items release];
         _items = [[GopherMenuParser parseMenuData:data] retain];
         [self buildMenuView];
-        [_tableView reloadData];
     } else {
         NSFont *font = [DTFontManager documentFont];
         NSAttributedString *attr =
@@ -301,19 +268,10 @@
 
 #pragma mark - Activation
 
-- (void)openSelectedItem:(id)sender
+#pragma mark - GopherMenuViewDelegate
+
+- (void)gopherMenuView:(GopherMenuView *)view didActivateItem:(GopherItem *)item
 {
-    NSInteger row = [_tableView clickedRow];
-    if (row < 0) {
-        row = [_tableView selectedRow];
-    }
-    if (row < 0 || row >= (NSInteger)[_items count]) {
-        return;
-    }
-    GopherItem *item = [_items objectAtIndex:row];
-    if (![item isClickable]) {
-        return;
-    }
     AppDelegate *app = (AppDelegate *)[NSApp delegate];
     [app openItem:item fromWindow:[self window]];
 }
@@ -330,95 +288,6 @@
         }
     }
     return streams;
-}
-
-#pragma mark - NSTableView data source / delegate
-
-- (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView
-{
-    return (NSInteger)[_items count];
-}
-
-// A fixed-width bracketed tag per item type (period-correct, no emoji).
-static NSString *TagForKind(GopherItemKind kind)
-{
-    switch (kind) {
-        case GopherItemKindMenu:    return @"[DIR]";
-        case GopherItemKindText:    return @"[TXT]";
-        case GopherItemKindSearch:  return @"[FND]";
-        case GopherItemKindHTML:    return @"[WWW]";
-        case GopherItemKindSound:   return @"[SND]";
-        case GopherItemKindError:   return @"[ERR]";
-        case GopherItemKindInfo:    return @"     ";
-        case GopherItemKindUnknown:
-        default:                    return @"[ ? ]";
-    }
-}
-
-- (id)tableView:(NSTableView *)tableView
-    objectValueForTableColumn:(NSTableColumn *)column
-                          row:(NSInteger)row
-{
-    if (row < 0 || row >= (NSInteger)[_items count]) {
-        return @"";
-    }
-    GopherItem *item = [_items objectAtIndex:row];
-    GopherItemKind kind = [item kind];
-
-    NSString *tag = TagForKind(kind);
-    NSString *display = [item displayString];
-    if (display == nil) {
-        display = @"";
-    }
-
-    // Row color by kind, tuned for the dark terminal background.
-    NSColor *textColor;
-    switch (kind) {
-        case GopherItemKindInfo:
-            textColor = [NSColor colorWithDeviceWhite:0.62 alpha:1.0]; break;
-        case GopherItemKindUnknown:
-            textColor = [NSColor colorWithDeviceWhite:0.45 alpha:1.0]; break;
-        case GopherItemKindError:
-            textColor = [NSColor colorWithDeviceRed:1.0 green:0.45 blue:0.45 alpha:1.0]; break;
-        default:
-            textColor = [NSColor colorWithDeviceWhite:0.90 alpha:1.0]; break;
-    }
-
-    NSMutableAttributedString *line =
-        [[[NSMutableAttributedString alloc] init] autorelease];
-
-    // Render menus in the monospaced document font: gopher menus routinely put
-    // ASCII art and aligned columns in info lines (e.g. the askthedeck dcgi
-    // draws boxed tarot cards), which only line up in a fixed-pitch font. The
-    // uniform-width type tag then keeps every row on one monospace grid.
-    NSFont *menuFont = [DTFontManager documentFont];
-
-    NSDictionary *tagAttrs = [NSDictionary dictionaryWithObjectsAndKeys:
-        menuFont, NSFontAttributeName,
-        [NSColor colorWithDeviceWhite:0.55 alpha:1.0], NSForegroundColorAttributeName, nil];
-    NSAttributedString *tagStr =
-        [[[NSAttributedString alloc] initWithString:[tag stringByAppendingString:@"  "]
-                                         attributes:tagAttrs] autorelease];
-
-    NSDictionary *dispAttrs = [NSDictionary dictionaryWithObjectsAndKeys:
-        menuFont, NSFontAttributeName,
-        textColor, NSForegroundColorAttributeName, nil];
-    NSAttributedString *dispStr =
-        [[[NSAttributedString alloc] initWithString:display
-                                         attributes:dispAttrs] autorelease];
-
-    [line appendAttributedString:tagStr];
-    [line appendAttributedString:dispStr];
-    return line;
-}
-
-// Only allow selecting clickable rows (info/error/unknown are inert).
-- (BOOL)tableView:(NSTableView *)tableView shouldSelectRow:(NSInteger)row
-{
-    if (row < 0 || row >= (NSInteger)[_items count]) {
-        return NO;
-    }
-    return [[_items objectAtIndex:row] isClickable];
 }
 
 #pragma mark - NSWindowDelegate

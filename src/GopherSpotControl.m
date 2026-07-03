@@ -7,6 +7,7 @@
 #import "GopherItem.h"
 #import "GopherMenuParser.h"
 #import "PLSParser.h"
+#import "SpotSelectors.h"
 
 #define DT_NOW_POLL_INTERVAL 6.0
 
@@ -16,6 +17,10 @@
 - (void)pollNow;
 - (NSString *)nowPlayingFromText:(NSString *)text;
 - (void)finishResolving;
+- (void)buildBrowseView;
+- (void)openSelector:(NSString *)selector push:(BOOL)push;
+- (void)search:(id)sender;
+- (void)goBack:(id)sender;
 @end
 
 @implementation GopherSpotControl
@@ -38,6 +43,10 @@
         }
         _controlBase = [[parent stringByAppendingPathComponent:@"control"] copy];
         _nowSelector = [[parent stringByAppendingPathComponent:@"now"] copy];
+        _playBase    = [[parent stringByAppendingPathComponent:@"play"] copy];
+        _searchBase  = [[parent stringByAppendingPathComponent:@"search"] copy];
+        _rootSelector = [@"" copy];   // gopher-spot server root is the menu
+        _navStack = [[NSMutableArray alloc] init];
     }
     return self;
 }
@@ -48,9 +57,17 @@
     [_streamSelector release];
     [_controlBase release];
     [_nowSelector release];
+    [_playBase release];
+    [_searchBase release];
+    [_rootSelector release];
     [_title release];
+    [_streamURL release];
     [_pollRequest release];
     [_pollTimer release];
+    [_browseView release];
+    [_browseRequest release];
+    [_navStack release];
+    [_currentSelector release];
     [super dealloc];
 }
 
@@ -114,6 +131,123 @@
     [_pollRequest cancel];
     [_pollRequest release];
     _pollRequest = nil;
+    [_browseRequest cancel];
+    [_browseRequest release];
+    _browseRequest = nil;
+    // Remove the browser from the panel (the player collapses back to compact).
+    [_player setBrowseView:nil];
+    [_menuView setMenuDelegate:nil];
+    _menuView = nil;
+    _searchField = nil;
+    [_browseView release];
+    _browseView = nil;
+    [_navStack removeAllObjects];
+    [_currentSelector release];
+    _currentSelector = nil;
+}
+
+#pragma mark - Embedded browser (fio 6)
+
+- (void)buildBrowseView
+{
+    if (_browseView != nil) {
+        return;
+    }
+    // Frame is set by -[StreamPlayerController setBrowseView:]; use a sane
+    // default. Subviews autoresize within it.
+    NSRect b = NSMakeRect(0, 0, 324, 320);
+    _browseView = [[NSView alloc] initWithFrame:b];
+
+    CGFloat top = b.size.height - 24.0;
+
+    NSButton *back = [[[NSButton alloc]
+        initWithFrame:NSMakeRect(0, top, 58, 22)] autorelease];
+    [back setTitle:@"‹"];
+    [back setBezelStyle:NSTexturedRoundedBezelStyle];
+    [back setTarget:self];
+    [back setAction:@selector(goBack:)];
+    [back setAutoresizingMask:NSViewMinYMargin];
+    [_browseView addSubview:back];
+
+    _searchField = [[[NSTextField alloc]
+        initWithFrame:NSMakeRect(64, top, b.size.width - 64, 22)] autorelease];
+    [[_searchField cell] setPlaceholderString:@"buscar músicas…"];
+    [_searchField setTarget:self];
+    [_searchField setAction:@selector(search:)];
+    [_searchField setAutoresizingMask:(NSViewWidthSizable | NSViewMinYMargin)];
+    [_browseView addSubview:_searchField];
+
+    _menuView = [[[GopherMenuView alloc]
+        initWithFrame:NSMakeRect(0, 0, b.size.width, top - 6)] autorelease];
+    [_menuView setMenuDelegate:self];
+    [_menuView setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
+    [_browseView addSubview:_menuView];
+}
+
+- (void)openSelector:(NSString *)selector push:(BOOL)push
+{
+    if (selector == nil) {
+        return;
+    }
+    if (push && _currentSelector != nil) {
+        [_navStack addObject:_currentSelector];
+    }
+    [_currentSelector release];
+    _currentSelector = [selector copy];
+
+    [_browseRequest cancel];
+    [_browseRequest release];
+    GopherRequest *req = [GopherRequest requestWithHost:_host port:_port selector:selector];
+    [req setDelegate:self];
+    _browseRequest = [req retain];
+    [req start];
+}
+
+- (void)search:(id)sender
+{
+    NSString *query = [[_searchField stringValue]
+        stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if ([query length] == 0) {
+        return;
+    }
+    NSString *sel = [NSString stringWithFormat:@"%@\t%@", _searchBase, query];
+    [self openSelector:sel push:YES];
+}
+
+- (void)goBack:(id)sender
+{
+    if ([_navStack count] == 0) {
+        return;
+    }
+    NSString *prev = [[[_navStack lastObject] retain] autorelease];
+    [_navStack removeLastObject];
+    [self openSelector:prev push:NO];
+}
+
+#pragma mark - GopherMenuViewDelegate (fio 6)
+
+- (void)gopherMenuView:(GopherMenuView *)view didActivateItem:(GopherItem *)item
+{
+    GopherItemKind kind = [item kind];
+    NSString *sel = [item selector];
+
+    if (kind == GopherItemKindSearch) {
+        [[_searchField window] makeFirstResponder:_searchField];
+        return;
+    }
+    if (kind == GopherItemKindSound) {
+        [_player ensureStreamPlayingURL:_streamURL];
+        return;
+    }
+
+    // Type-1 (and other clickable items): a play action fires playback and keeps
+    // the stream on; everything else is drill-down navigation.
+    if ([SpotSelectors isPlayActionSelector:sel playBase:_playBase controlBase:_controlBase]) {
+        [_player ensureStreamPlayingURL:_streamURL];
+        [self openSelector:sel push:NO];
+    } else {
+        [self openSelector:sel push:YES];
+    }
 }
 
 #pragma mark - Now Playing polling
@@ -163,11 +297,17 @@
             [self finishResolving];
             return;
         }
+        [_streamURL release];
+        _streamURL = [url copy];
         // Hand the resolved stream + ourselves (as control) to the radinho.
         [_player playStreamURL:url title:_title controlDelegate:self];
         // Volume policy: keep the remote (Spotify) pinned at 100% and do all
         // attenuation locally with the radinho's slider (AudioQueue volume).
         [self sendControl:@"vol/100"];
+        // Build the embedded browser and seed it at the gopher-spot root.
+        [self buildBrowseView];
+        [_player setBrowseView:_browseView];
+        [self openSelector:_rootSelector push:NO];
         // Begin polling now-playing.
         [self pollNow];
         _pollTimer = [[NSTimer scheduledTimerWithTimeInterval:DT_NOW_POLL_INTERVAL
@@ -176,6 +316,12 @@
                                                      userInfo:nil
                                                       repeats:YES] retain];
         [self finishResolving];
+        return;
+    }
+
+    if (request == _browseRequest) {
+        // A browse fetch: render the menu into the embedded list.
+        [_menuView setItems:[GopherMenuParser parseMenu:text]];
         return;
     }
 

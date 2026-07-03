@@ -10,6 +10,7 @@
 #import "PlayQueue.h"
 #import "PlayQueueItem.h"
 #import "PLSParser.h"
+#import "SpotSelectors.h"
 
 @interface PlayerTests : SenTestCase
 @end
@@ -179,6 +180,47 @@ static NSArray *ThreeItems(void)
     STAssertNil([PLSParser firstURLFromPlaylistText:@"[playlist]\nNumberOfEntries=0\n"],
                 @"no URL → nil");
     STAssertNil([PLSParser firstURLFromPlaylistText:nil], @"nil → nil");
+}
+
+#pragma mark - SpotSelectors (play-action detection)
+
+- (void)testPlayEndpointIsPlayAction
+{
+    STAssertTrue([SpotSelectors isPlayActionSelector:@"/spot/play?uri=spotify:track:4d0DpU7Odiv0ztvX2GxJlk"
+                                             playBase:@"/spot/play" controlBase:@"/spot/control"],
+                 @"/spot/play?uri=… is a play action");
+    STAssertTrue([SpotSelectors isPlayActionSelector:@"/spot/play?uri=spotify:album:6WvN5lJoLYNXc8HYLuxjeX"
+                                             playBase:@"/spot/play" controlBase:@"/spot/control"],
+                 @"album play is a play action");
+}
+
+- (void)testControlPlayIsPlayAction
+{
+    STAssertTrue([SpotSelectors isPlayActionSelector:@"/spot/control/play"
+                                             playBase:@"/spot/play" controlBase:@"/spot/control"],
+                 @"/spot/control/play is a play action");
+}
+
+- (void)testBrowseSelectorsAreNotPlayActions
+{
+    STAssertFalse([SpotSelectors isPlayActionSelector:@"/spot/playlists"
+                                             playBase:@"/spot/play" controlBase:@"/spot/control"],
+                  @"/spot/playlists is NOT a play action");
+    STAssertFalse([SpotSelectors isPlayActionSelector:@"/spot/playlists?offset=20"
+                                             playBase:@"/spot/play" controlBase:@"/spot/control"],
+                  @"paginated playlists is NOT a play action");
+    STAssertFalse([SpotSelectors isPlayActionSelector:@"/spot/track/4d0DpU7Odiv0ztvX2GxJlk"
+                                             playBase:@"/spot/play" controlBase:@"/spot/control"],
+                  @"track detail is NOT a play action");
+    STAssertFalse([SpotSelectors isPlayActionSelector:@"/spot/control/next"
+                                             playBase:@"/spot/play" controlBase:@"/spot/control"],
+                  @"next is NOT a play action");
+    STAssertFalse([SpotSelectors isPlayActionSelector:@"/spot/control/vol/100"
+                                             playBase:@"/spot/play" controlBase:@"/spot/control"],
+                  @"volume is NOT a play action");
+    STAssertFalse([SpotSelectors isPlayActionSelector:nil
+                                             playBase:@"/spot/play" controlBase:@"/spot/control"],
+                  @"nil is NOT a play action");
 }
 
 @end

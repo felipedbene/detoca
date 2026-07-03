@@ -72,7 +72,9 @@ Two layers, cleanly separated:
 | `PLSParser` | Extracts the first stream URL from a PLS/M3U playlist (pure Foundation, unit-tested). |
 | `StreamPlayerController` | Singleton dark HUD `NSPanel`. Two modes: QTKit finite-file queue (fio 2) and a live-stream mode (fio 5). Never imports the parser or gopher. |
 | `DTAudioStreamer` | Live MP3 streaming via `AudioFileStream` + `AudioQueue` on a dedicated thread — what QTKit cannot do. Foundation + AudioToolbox, no AppKit. |
-| `GopherSpotControl` | The gopher side of gopher-spot: resolves the `.pls`, is the player's `StreamControlDelegate` (transport → `/spot/control/*`), and polls `/spot/now`. |
+| `GopherSpotControl` | The gopher side of gopher-spot: resolves the `.pls`, is the player's `StreamControlDelegate` (transport → `/spot/control/*`), polls `/spot/now`, and drives the radinho's embedded browser (search + drill-down + play). |
+| `GopherMenuView` | Reusable dark-theme Gopher menu list (scroll view + table + cell recipe + activation delegate). Used by both the menu windows and the radinho browser. |
+| `SpotSelectors` | Pure-Foundation helper: is a selector a gopher-spot "play" action (`/spot/play?…`, `…/control/play`) vs. drill-down? Unit-tested. |
 
 **AppKit UI:**
 
@@ -182,6 +184,20 @@ plays the stream, and wires the panel to the control plane via
   `/spot/now`. The player itself stays gopher-agnostic — all gopher knowledge
   lives in `GopherSpotControl`, which is just the player's `StreamControlDelegate`.
 - Playback survives closing the browser window; closing the panel stops it.
+
+### The radinho as a gopher-spot menu (fio 6)
+
+Activating the type-`s` stream item doesn't just play — it **expands the radinho
+into an embedded gopher-spot browser**. The panel grows: transport controls on
+top, then a search field, then a scrollable menu list seeded at the gopher-spot
+root. It's a small generic Gopher browser (fetch → render → drill-down stack +
+Back + search) pointed at the control host, reusing `GopherMenuView`, with one
+gopher-spot-specific hook: activating a **play** selector (`/spot/play?…` or
+`…/control/play`, detected by `SpotSelectors`) ensures the local stream is
+playing so you hear it. Search sends `/spot/search␉query`; artists/albums/tracks
+drill down to their detail pages; `>> Tocar agora` plays. The player stays
+gopher-agnostic — it only hosts an opaque browse view; all gopher logic lives in
+`GopherSpotControl`.
 
 ## Bookmarks
 

@@ -11,13 +11,12 @@
 
 #import <Cocoa/Cocoa.h>
 #import "GopherRequest.h"
+#import "GopherMenuView.h"
 
 @class GopherResource;
-@class GopherTableView;
 
 @interface GopherWindowController : NSWindowController
-    <GopherRequestDelegate, NSWindowDelegate,
-     NSTableViewDataSource, NSTableViewDelegate> {
+    <GopherRequestDelegate, NSWindowDelegate, GopherMenuViewDelegate> {
     GopherResource      *_resource;
     GopherRequest       *_request;
     NSArray             *_items;         // GopherItem list (menu mode)
@@ -25,7 +24,7 @@
 
     NSProgressIndicator *_spinner;       // not retained (owned by view tree)
     NSTextField         *_statusLabel;   // not retained
-    GopherTableView     *_tableView;     // not retained
+    GopherMenuView      *_menuView;      // not retained (owned by view tree)
     NSTextView          *_textView;      // not retained
     NSView              *_bodyArea;      // not retained
 

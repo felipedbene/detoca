@@ -49,7 +49,8 @@ MODEL_SRC = \
 	src/StreamRouting.m \
 	src/PlayQueueItem.m \
 	src/PlayQueue.m \
-	src/PLSParser.m
+	src/PLSParser.m \
+	src/SpotSelectors.m
 
 # Audio (Foundation + AudioToolbox; no AppKit). fio-5 live streaming.
 AUDIO_SRC = \
@@ -62,6 +63,7 @@ UI_SRC = \
 	src/BookmarkStore.m \
 	src/DTInputSheet.m \
 	src/GopherTableView.m \
+	src/GopherMenuView.m \
 	src/PreferencesController.m \
 	src/StreamPlayerController.m \
 	src/GopherSpotControl.m \

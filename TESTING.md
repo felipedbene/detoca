@@ -105,6 +105,24 @@ the radinho plays in stream mode with a live clock; the `Next` button fired
 Girl"); 0 leaks under `MallocStackLogging`. `make test` = 47 tests green
 (adds the PLSParser suite).
 
+### The radinho as a gopher-spot menu (fio 6)
+
+- [ ] **Expand on play** — activating `[SND] Reabrir stream` opens the radinho
+      already expanded: transport + search field + the gopher-spot root menu.
+- [ ] **Search** — type a query in "buscar músicas…" → Faixas / Artistas / Albuns.
+- [ ] **Drill-down + Back** — a track opens its detail page; an album lists its
+      tracks; the `‹` button steps back through the nav stack.
+- [ ] **Play** — `>> Tocar agora` plays the track on Spotify and ensures the
+      local stream is on (you hear it); the list shows now-playing.
+- [ ] **fio-1 regression** — floodgap/debene menus still render + activate
+      (menu rendering moved into the shared `GopherMenuView`).
+- [ ] Known: **artist** drill-down errors (gopher-spot server returns Spotify
+      HTTP 403); the radinho just renders the error menu.
+
+Verified on the 10.6.8 target: the radinho expands into the gopher-spot browser,
+renders the root menu in the dark theme, and shows the polled now-playing title.
+`make test` = 50 tests green (adds the SpotSelectors suite).
+
 ## Verified on hardware (this fio)
 
 Built and run on the actual target (Mac OS X 10.6.8, MacBook2,1, i386,

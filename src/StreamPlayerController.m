@@ -18,6 +18,11 @@ enum {
     DTPlayerModeStream    // DTAudioStreamer live stream (fio 5)
 };
 
+#define DT_PANEL_W          340.0
+#define DT_PANEL_H_COMPACT  138.0    // player only
+#define DT_PANEL_H_EXPANDED 470.0    // player + gopher-spot browser
+#define DT_TRANSPORT_H      138.0    // height of the transport controls block
+
 @interface StreamPlayerController () <DTAudioStreamerDelegate>
 - (void)buildPanel;
 - (void)ensurePanel;
@@ -68,6 +73,8 @@ static StreamPlayerController *sSharedPlayer = nil;
     [self teardownMovie];
     [self teardownStream];
     [_queue release];
+    [_streamURL release];
+    [_transportView release];
     [_panel release];
     [super dealloc];
 }
@@ -103,9 +110,9 @@ static StreamPlayerController *sSharedPlayer = nil;
 
 - (void)buildPanel
 {
-    NSRect rect = NSMakeRect(0, 0, 340, 138);
+    NSRect rect = NSMakeRect(0, 0, DT_PANEL_W, DT_PANEL_H_COMPACT);
     NSUInteger style = (NSTitledWindowMask | NSClosableWindowMask |
-                        NSUtilityWindowMask | NSHUDWindowMask);
+                        NSResizableWindowMask | NSUtilityWindowMask | NSHUDWindowMask);
     _panel = [[NSPanel alloc] initWithContentRect:rect
                                         styleMask:style
                                           backing:NSBackingStoreBuffered
@@ -116,9 +123,19 @@ static StreamPlayerController *sSharedPlayer = nil;
     [_panel setHidesOnDeactivate:NO];
     [_panel setReleasedWhenClosed:NO];
     [_panel setBecomesKeyOnlyIfNeeded:YES];
+    [_panel setMinSize:[_panel frameRectForContentRect:
+                        NSMakeRect(0, 0, DT_PANEL_W, DT_PANEL_H_COMPACT)].size];
     [_panel setDelegate:self];
 
-    NSView *c = [_panel contentView];
+    // Transport controls live in their own view so the panel can grow a browse
+    // area below them: the transport view is pinned to the top (NSViewMinYMargin)
+    // and just rides up when the panel expands.
+    _transportView = [[NSView alloc] initWithFrame:
+                      NSMakeRect(0, 0, DT_PANEL_W, DT_TRANSPORT_H)];
+    [_transportView setAutoresizingMask:(NSViewWidthSizable | NSViewMinYMargin)];
+    [[_panel contentView] addSubview:_transportView];
+
+    NSView *c = _transportView;
 
     _titleLabel = [self hudLabelWithFrame:NSMakeRect(16, 104, 308, 20) size:13.0 dim:NO];
     [[_titleLabel cell] setLineBreakMode:NSLineBreakByTruncatingMiddle];
@@ -170,6 +187,97 @@ static StreamPlayerController *sSharedPlayer = nil;
     [_panel orderFront:self];
 }
 
+#pragma mark - Browse area (fio 6) — player stays gopher-agnostic
+
+// Resize the panel to a new content height, keeping the top-left corner fixed so
+// it grows downward (the transport view rides up to the top via autoresizing).
+- (void)resizePanelContentHeight:(CGFloat)h
+{
+    NSRect f = [_panel frame];
+    CGFloat topY = NSMaxY(f);
+    NSRect newFrame = [_panel frameRectForContentRect:NSMakeRect(0, 0, DT_PANEL_W, h)];
+    newFrame.origin.x = f.origin.x;
+    newFrame.origin.y = topY - newFrame.size.height;
+    [_panel setFrame:newFrame display:YES];
+}
+
+- (void)setBrowseView:(NSView *)view
+{
+    [self ensurePanel];
+    NSView *content = [_panel contentView];
+
+    if (_browseView != nil) {
+        [_browseView removeFromSuperview];
+        _browseView = nil;
+    }
+
+    if (view != nil) {
+        if (!_expanded) {
+            [self resizePanelContentHeight:DT_PANEL_H_EXPANDED];
+            _expanded = YES;
+        }
+        CGFloat contentH = [content bounds].size.height;
+        [view setFrame:NSMakeRect(8, 8,
+                                  DT_PANEL_W - 16, contentH - DT_TRANSPORT_H - 12)];
+        [view setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
+        [content addSubview:view];
+        _browseView = view;   // not retained (owned by the view tree)
+    } else {
+        if (_expanded) {
+            [self resizePanelContentHeight:DT_PANEL_H_COMPACT];
+            _expanded = NO;
+        }
+    }
+}
+
+// Lock horizontal resizing; only the height (browse list) is user-resizable.
+- (NSSize)windowWillResize:(NSWindow *)sender toSize:(NSSize)frameSize
+{
+    return NSMakeSize([sender frame].size.width, frameSize.height);
+}
+
+#pragma mark - Ensure-stream (fio 6)
+
+- (BOOL)isStreamPlaying
+{
+    return (_mode == DTPlayerModeStream && _streamer != nil && _playing);
+}
+
+- (void)ensureStreamPlayingURL:(NSString *)urlString
+{
+    if (_mode != DTPlayerModeStream) {
+        return;
+    }
+    if (_streamer != nil && _playing) {
+        return;   // already playing
+    }
+    if (_streamer != nil && !_playing) {
+        // Paused → resume, and mirror to the control plane.
+        [_streamer setPaused:NO];
+        _playing = YES;
+        [self startTick];
+        [self updatePlayButton];
+        if (_control != nil) {
+            [_control streamControlPlay];
+        }
+        return;
+    }
+    // Streamer gone (stopped/errored) → recreate it, keeping _control.
+    NSString *url = ([urlString length] > 0) ? urlString : _streamURL;
+    if ([url length] == 0) {
+        return;
+    }
+    [_streamer setDelegate:nil];
+    [_streamer stop];
+    [_streamer release];
+    _streamer = [[DTAudioStreamer alloc] initWithURLString:url];
+    [_streamer setDelegate:self];
+    [_streamer setVolume:_volume];
+    _playing = NO;
+    [self updatePlayButton];
+    [_streamer start];
+}
+
 #pragma mark - Public playback API
 
 - (void)playItems:(NSArray *)items atIndex:(NSInteger)index
@@ -211,6 +319,9 @@ static StreamPlayerController *sSharedPlayer = nil;
     [_positionLabel setStringValue:(_control != nil ? @"live · gopher-spot" : @"live")];
     [_timeLabel setStringValue:@"0:00"];
 
+    [_streamURL release];
+    _streamURL = [urlString copy];
+
     _streamer = [[DTAudioStreamer alloc] initWithURLString:urlString];
     [_streamer setDelegate:self];
     [_streamer setVolume:_volume];
@@ -225,7 +336,9 @@ static StreamPlayerController *sSharedPlayer = nil;
 - (void)showTitle:(NSString *)title
 {
     [_titleLabel setStringValue:(title ? title : @"")];
-    [[_panel contentView] setNeedsDisplayInRect:[_titleLabel frame]];
+    // Repaint the HUD background under the non-opaque label (its superview is the
+    // transport view) so a shorter new string doesn't leave the old tail behind.
+    [[_titleLabel superview] setNeedsDisplayInRect:[_titleLabel frame]];
 }
 
 - (void)setNowPlayingTitle:(NSString *)title
@@ -249,6 +362,12 @@ static StreamPlayerController *sSharedPlayer = nil;
         [_streamer stop];
         [_streamer release];
         _streamer = nil;
+    }
+    [_streamURL release];
+    _streamURL = nil;
+    // Collapse the browser back to the compact player (if the panel exists).
+    if (_panel != nil) {
+        [self setBrowseView:nil];
     }
     [self stopTick];
 }

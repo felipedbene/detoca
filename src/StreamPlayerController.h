@@ -44,6 +44,11 @@
     int          _mode;              // DTPlayerModeIdle/Queue/Stream
     DTAudioStreamer *_streamer;      // stream mode
     id <StreamControlDelegate> _control;  // retained; nil for a plain stream
+    NSString    *_streamURL;         // current stream URL (for ensure-playing)
+
+    NSView      *_transportView;     // holds the compact player controls
+    NSView      *_browseView;        // gopher-spot browser area (opaque; not retained)
+    BOOL         _expanded;          // panel grown to host the browse area
 
     NSTextField *_titleLabel;
     NSTextField *_timeLabel;
@@ -67,6 +72,18 @@
 
 // Push a now-playing title into the panel (e.g. AppDelegate polling /spot/now).
 - (void)setNowPlayingTitle:(NSString *)title;
+
+// Host an opaque browse view below the transport controls (grows the panel);
+// pass nil to remove it and shrink back to the compact player. The player stays
+// gopher-agnostic — it never inspects the view.
+- (void)setBrowseView:(NSView *)view;
+
+// Whether the live stream is currently producing audio.
+- (BOOL)isStreamPlaying;
+
+// Ensure the live stream is playing: resume if paused, or (re)start it from the
+// given URL if it stopped. No-op if already playing.
+- (void)ensureStreamPlayingURL:(NSString *)urlString;
 
 - (void)showPanel;
 - (BOOL)hasQueue;

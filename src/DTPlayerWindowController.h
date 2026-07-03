@@ -38,6 +38,7 @@
     NSTextField     *_subLabel;
     NSTextField     *_elapsedLabel;
     NSTextField     *_durationLabel;
+    NSTextField     *_pollLabel;     // honest "(polling…)" indicator
     NSSlider        *_seekSlider;
     NSSlider        *_volumeSlider;
     NSButton        *_prevButton;

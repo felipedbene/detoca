@@ -121,12 +121,12 @@ static NSString *DTFormatMs(long long ms)
     [c addSubview:_seekSlider];
 
     _elapsedLabel = [self labelFrame:NSMakeRect(16, 70, 120, 14) size:11.0 dim:YES];
-    [_elapsedLabel setStringValue:@"0:00"];
+    [_elapsedLabel setStringValue:@"–:–"];
     [c addSubview:_elapsedLabel];
 
     _durationLabel = [self labelFrame:NSMakeRect(204, 70, 120, 14) size:11.0 dim:YES];
     [_durationLabel setAlignment:NSRightTextAlignment];
-    [_durationLabel setStringValue:@"0:00"];
+    [_durationLabel setStringValue:@"–:–"];
     [c addSubview:_durationLabel];
 
     _prevButton = [self buttonFrame:NSMakeRect(118, 34, 34, 30)
@@ -143,7 +143,7 @@ static NSString *DTFormatMs(long long ms)
     [vol setStringValue:@"vol"];
     [c addSubview:vol];
 
-    _volumeSlider = [[[NSSlider alloc] initWithFrame:NSMakeRect(46, 6, 140, 18)] autorelease];
+    _volumeSlider = [[[NSSlider alloc] initWithFrame:NSMakeRect(46, 6, 128, 18)] autorelease];
     [_volumeSlider setMinValue:0.0];
     [_volumeSlider setMaxValue:100.0];
     [_volumeSlider setDoubleValue:100.0];
@@ -151,6 +151,12 @@ static NSString *DTFormatMs(long long ms)
     [_volumeSlider setTarget:self];
     [_volumeSlider setAction:@selector(onVolume:)];
     [c addSubview:_volumeSlider];
+
+    // Honest polling indicator: the API is polled ~2 s, so say so.
+    _pollLabel = [self labelFrame:NSMakeRect(180, 7, 144, 12) size:9.0 dim:YES];
+    [_pollLabel setAlignment:NSRightTextAlignment];
+    [_pollLabel setTextColor:[DTTheme textMuted]];
+    [c addSubview:_pollLabel];
 
     [_panel center];
 }
@@ -255,7 +261,7 @@ static NSString *DTFormatMs(long long ms)
 - (void)startPolling
 {
     if (_pollTimer == nil) {
-        _pollTimer = [[NSTimer scheduledTimerWithTimeInterval:1.0
+        _pollTimer = [[NSTimer scheduledTimerWithTimeInterval:2.0
                                                        target:self
                                                      selector:@selector(pollNow)
                                                      userInfo:nil
@@ -272,6 +278,9 @@ static NSString *DTFormatMs(long long ms)
 
 - (void)stopSession
 {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self
+                                             selector:@selector(clearPollLabel)
+                                               object:nil];
     [_pollTimer invalidate];
     [_pollTimer release];
     _pollTimer = nil;
@@ -290,8 +299,20 @@ static NSString *DTFormatMs(long long ms)
     _streamer = nil;
 }
 
+- (void)clearPollLabel
+{
+    [_pollLabel setStringValue:@""];
+}
+
 - (void)pollNow
 {
+    // Be honest that state is polled (~2 s), not live: pulse "(polling…)" each
+    // cycle, visible long enough to read even though the LAN round-trip is fast.
+    [_pollLabel setStringValue:@"(polling…)"];
+    [NSObject cancelPreviousPerformRequestsWithTarget:self
+                                             selector:@selector(clearPollLabel)
+                                               object:nil];
+    [self performSelector:@selector(clearPollLabel) withObject:nil afterDelay:0.8];
     [_api fetchNow:[self applyHandler]];
 }
 
@@ -310,7 +331,8 @@ static NSString *DTFormatMs(long long ms)
     if (_last == nil || _scrubbing) {
         return;
     }
-    if (_last.state != DTPlaybackPlaying || _last.durationMs <= 0) {
+    // Advance the clock only while music is actually playing.
+    if (![_last hasTrack] || _last.state != DTPlaybackPlaying || _last.durationMs <= 0) {
         return;
     }
     long long pos = [_last interpolatedPositionMsAtEpochMs:DTNowEpochMs()];
@@ -344,11 +366,18 @@ static NSString *DTFormatMs(long long ms)
     // Play/pause glyph.
     [_playButton setTitle:(snap.state == DTPlaybackPlaying ? @"❙❙" : @"▶")];
 
-    // Seek + time (unless the user is scrubbing).
-    long long dur = snap.durationMs;
-    [_seekSlider setMaxValue:(dur > 0 ? (double)dur : 1.0)];
-    [_durationLabel setStringValue:DTFormatMs(dur)];
-    if (!_scrubbing) {
+    // Time only counts when there IS music — with nothing loaded, show no clock
+    // and a dead seek bar rather than a fake 0:00.
+    if (![snap hasTrack]) {
+        [_seekSlider setEnabled:NO];
+        [_seekSlider setDoubleValue:0.0];
+        [_elapsedLabel setStringValue:@"–:–"];
+        [_durationLabel setStringValue:@"–:–"];
+    } else if (!_scrubbing) {
+        long long dur = snap.durationMs;
+        [_seekSlider setEnabled:YES];
+        [_seekSlider setMaxValue:(dur > 0 ? (double)dur : 1.0)];
+        [_durationLabel setStringValue:DTFormatMs(dur)];
         long long pos = [snap interpolatedPositionMsAtEpochMs:DTNowEpochMs()];
         [_seekSlider setDoubleValue:(double)pos];
         [_elapsedLabel setStringValue:DTFormatMs(pos)];
@@ -439,10 +468,13 @@ static NSString *DTFormatMs(long long ms)
 {
     [self stopSession];
     [_titleLabel setStringValue:@"Nada tocando"];
+    [_titleLabel setTextColor:[DTTheme textBright]];
     [_subLabel setStringValue:@""];
+    [_pollLabel setStringValue:@""];
+    [_seekSlider setEnabled:NO];
     [_seekSlider setDoubleValue:0.0];
-    [_elapsedLabel setStringValue:@"0:00"];
-    [_durationLabel setStringValue:@"0:00"];
+    [_elapsedLabel setStringValue:@"–:–"];
+    [_durationLabel setStringValue:@"–:–"];
     [_playButton setTitle:@"▶"];
 }
 

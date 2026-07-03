@@ -64,6 +64,7 @@ AUDIO_SRC = \
 # builds don't have to link it.
 UI_SRC = \
 	src/DTSpotAPI.m \
+	src/DTPlayerWindowController.m \
 	src/DTFontManager.m \
 	src/AttributedStringRenderer.m \
 	src/BookmarkStore.m \

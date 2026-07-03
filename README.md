@@ -63,6 +63,14 @@ Two layers, cleanly separated:
 | `GopherRequest` | One RFC 1436 transaction on a background queue; main-thread delegate callbacks; 10s connect / 30s read timeouts; cancellable. BSD sockets (10.5-clean). |
 | `DTDispatch` | The single wrapper around libdispatch (GCD). *10.6-only*, isolated so the fio-3 10.5 build can swap in an NSThread/NSOperationQueue path. |
 
+**Player (fio 2) — the "radinho":**
+
+| Class | Responsibility |
+|-------|----------------|
+| `StreamRouting` | Classifies a URL string as an in-app MP3 stream (pure Foundation, unit-tested). |
+| `PlayQueueItem` / `PlayQueue` | Gopher-agnostic queue model: ordered (title, URL) items with a current index and next/prev/replace (pure Foundation, unit-tested). |
+| `StreamPlayerController` | Singleton dark HUD `NSPanel` playing a `PlayQueue` with QTKit; auto-advance, dead-stream skip, persisted volume. Never imports the parser. |
+
 **AppKit UI:**
 
 | Class | Responsibility |
@@ -131,6 +139,26 @@ You can also launch straight to a location:
 ```sh
 open DeToca.app --args gopher://gopher.debene.dev/0/map.ansi
 ```
+
+## Streams — the radinho (fio 2)
+
+gopher-spot serves menu items (`h`/`URL:`) pointing at HTTP MP3 streams. Clicking
+one opens the **radinho**: a single global floating panel that plays in-app via
+QTKit. The queue is built from **all** playable stream items in that menu, in
+order, starting at the clicked item; auto-advance moves through them, and end of
+queue parks on the last track. The panel is independent of browser windows —
+**playback survives closing every menu window** and stops only when the panel is
+closed or the app quits. A dead stream is skipped forward without an alert storm.
+
+- **Routing** lives in the single fio-1 seam `-openExternalURLString:`: an
+  http(s) URL whose path ends in `.mp3` plays in-app; everything else keeps the
+  fio-1 external-handoff behavior.
+- **Option-click always forces external open**, even for MP3 links (escape hatch).
+- **Playback menu**: Play/Pause `⌥⌘P`, Previous `⌥⌘←`, Next `⌥⌘→` (global), plus
+  Show Radinho. Space toggles play/pause only while the panel is key.
+- **File ▸ Export Menu as Playlist…** writes the frontmost menu's stream items as
+  Extended M3U (`#EXTM3U` / `#EXTINF:-1,<title>`) for use in an external player.
+- Volume persists across relaunches (`NSUserDefaults`).
 
 ## Bookmarks
 

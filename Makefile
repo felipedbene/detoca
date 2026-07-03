@@ -43,7 +43,13 @@ NET_SRC = \
 	src/DTDispatch.m \
 	src/GopherRequest.m
 
-# AppKit UI.
+# Player model (pure Foundation, no AppKit/QTKit). Unit-tested.
+MODEL_SRC = \
+	src/StreamRouting.m \
+	src/PlayQueueItem.m \
+	src/PlayQueue.m
+
+# AppKit UI (incl. the fio-2 QTKit player).
 UI_SRC = \
 	src/DTFontManager.m \
 	src/AttributedStringRenderer.m \
@@ -51,14 +57,15 @@ UI_SRC = \
 	src/DTInputSheet.m \
 	src/GopherTableView.m \
 	src/PreferencesController.m \
+	src/StreamPlayerController.m \
 	src/GopherWindowController.m \
 	src/AppDelegate.m \
 	src/main.m
 
-APP_SRC  = $(PARSER_SRC) $(NET_SRC) $(UI_SRC)
-APP_LIBS = -framework Cocoa -framework ApplicationServices
+APP_SRC  = $(PARSER_SRC) $(NET_SRC) $(MODEL_SRC) $(UI_SRC)
+APP_LIBS = -framework Cocoa -framework ApplicationServices -framework QTKit
 
-TEST_SRC = $(PARSER_SRC) tests/ParserTests.m
+TEST_SRC = $(PARSER_SRC) $(MODEL_SRC) tests/ParserTests.m tests/PlayerTests.m
 
 # --- Default target ----------------------------------------------------------
 

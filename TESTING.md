@@ -56,6 +56,34 @@ Launch with `make run` (opens the Home window on `gopher.debene.dev`).
 - [ ] **Preferences** — Cmd-, shows the resolved document font (should read
       "Cascadia Code 12.0"); changing it via the font panel persists.
 
+### Radinho / streams (fio 2)
+
+- [ ] **gopher-spot click-to-play** — click a stream item; the radinho opens and
+      plays; the queue is built from all stream items in that menu.
+- [ ] **Auto-advance** — let 3+ tracks play; each advances to the next at end;
+      the queue position ("2 / 3") updates.
+- [ ] **Queue survives its window** — close the menu window that started
+      playback; playback continues. Closing the radinho panel stops it.
+- [ ] **Option-click external** — ⌥-click an MP3 link opens it in the external
+      default handler instead of the radinho.
+- [ ] **Dead stream** — a broken stream URL is skipped forward without an alert
+      storm (a brief "Skipped…" note, then the next track).
+- [ ] **Volume persistence** — set the volume, quit, relaunch; the last volume is
+      restored.
+- [ ] **M3U export** — File ▸ Export Menu as Playlist… produces a file QuickTime
+      Player opens and plays.
+- [ ] **Playback menu / shortcuts** — ⌥⌘P / ⌥⌘← / ⌥⌘→ control playback globally;
+      space toggles only while the panel is key.
+
+### Verified on hardware (fio 2)
+
+Driven on the 10.6.8 target with a local HTTP server and the real
+`StreamPlayerController`: the dark HUD radinho renders; a track plays with a
+live elapsed clock; a 3-track queue auto-advances (each track plays fully to
+`QTMovieDidEndNotification`, position updates 1/3 → 2/3 → 3/3); a stream that
+fails to load moves the queue forward without any alert. `make test` includes
+the PlayQueue/StreamRouting suites (42 tests total, green).
+
 ## Verified on hardware (this fio)
 
 Built and run on the actual target (Mac OS X 10.6.8, MacBook2,1, i386,

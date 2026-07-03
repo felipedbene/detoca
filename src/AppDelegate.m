@@ -11,6 +11,9 @@
 #import "BookmarkStore.h"
 #import "DTFontManager.h"
 #import "DTInputSheet.h"
+#import "StreamRouting.h"
+#import "StreamPlayerController.h"
+#import "PlayQueueItem.h"
 
 #define DT_HOME_HOST @"gopher.debene.dev"
 #define DT_HOME_PORT 70
@@ -23,6 +26,9 @@
                    action:(SEL)action
                       key:(NSString *)key
                    target:(id)target;
+- (void)openURLExternally:(NSString *)urlString;
+- (void)playStreamsFromWindow:(NSWindow *)window startingAtItem:(GopherItem *)item;
+- (void)exportPlaylist:(id)sender;
 @end
 
 @implementation AppDelegate
@@ -96,7 +102,17 @@
     GopherItemKind kind = [item kind];
 
     if (kind == GopherItemKindHTML) {
-        [self openExternalURLString:[item externalURLString]];
+        NSString *url = [item externalURLString];
+        BOOL optionDown = ([[NSApp currentEvent] modifierFlags] & NSAlternateKeyMask) != 0;
+        if (optionDown) {
+            // Escape hatch: option-click always opens externally, even MP3s.
+            [self openURLExternally:url];
+        } else if ([StreamRouting isPlayableStreamURLString:url]) {
+            // Build the queue from this window's stream items, starting here.
+            [self playStreamsFromWindow:parent startingAtItem:item];
+        } else {
+            [self openExternalURLString:url];
+        }
         return;
     }
 
@@ -139,6 +155,20 @@
     if ([urlString length] == 0) {
         return;
     }
+    // Routing rule (fio 2): MP3 streams play in the in-app radinho; everything
+    // else keeps the fio-1 behavior of handing off to the default handler.
+    if ([StreamRouting isPlayableStreamURLString:urlString]) {
+        [[StreamPlayerController sharedController] playSingleURL:urlString title:urlString];
+        return;
+    }
+    [self openURLExternally:urlString];
+}
+
+- (void)openURLExternally:(NSString *)urlString
+{
+    if ([urlString length] == 0) {
+        return;
+    }
     NSURL *url = [NSURL URLWithString:urlString];
     if (url == nil) {
         // Percent-escape as a fallback for URLs with unsafe characters.
@@ -151,6 +181,37 @@
     } else {
         NSBeep();
     }
+}
+
+- (void)playStreamsFromWindow:(NSWindow *)window startingAtItem:(GopherItem *)item
+{
+    NSArray *streamItems = nil;
+    NSUInteger startIndex = 0;
+
+    id wc = [window windowController];
+    if ([wc isKindOfClass:[GopherWindowController class]]) {
+        streamItems = [(GopherWindowController *)wc playableStreamItems];
+        NSUInteger idx = [streamItems indexOfObjectIdenticalTo:item];
+        if (idx != NSNotFound) {
+            startIndex = idx;
+        }
+    }
+
+    if ([streamItems count] == 0) {
+        // No menu context: just play the single clicked item.
+        [[StreamPlayerController sharedController]
+            playSingleURL:[item externalURLString] title:[item displayString]];
+        return;
+    }
+
+    NSMutableArray *queue = [NSMutableArray array];
+    NSUInteger i, n = [streamItems count];
+    for (i = 0; i < n; i++) {
+        GopherItem *s = [streamItems objectAtIndex:i];
+        [queue addObject:[PlayQueueItem itemWithTitle:[s displayString]
+                                            urlString:[s externalURLString]]];
+    }
+    [[StreamPlayerController sharedController] playItems:queue atIndex:startIndex];
 }
 
 - (void)gopherWindowWillClose:(GopherWindowController *)controller
@@ -236,6 +297,47 @@
     [_prefs showPreferences];
 }
 
+- (void)exportPlaylist:(id)sender
+{
+    id wc = [[NSApp keyWindow] windowController];
+    if (![wc isKindOfClass:[GopherWindowController class]]) {
+        NSBeep();
+        return;
+    }
+    NSArray *streams = [(GopherWindowController *)wc playableStreamItems];
+    if ([streams count] == 0) {
+        NSBeep();
+        return;
+    }
+
+    NSSavePanel *panel = [NSSavePanel savePanel];
+    [panel setTitle:@"Export Menu as Playlist"];
+    [panel setAllowedFileTypes:[NSArray arrayWithObject:@"m3u"]];
+    [panel setNameFieldStringValue:@"playlist.m3u"];
+    if ([panel runModal] != NSFileHandlingPanelOKButton) {
+        return;
+    }
+
+    // Extended M3U: one #EXTINF header (unknown length) + URL per stream.
+    NSMutableString *m3u = [NSMutableString stringWithString:@"#EXTM3U\n"];
+    NSUInteger i, n = [streams count];
+    for (i = 0; i < n; i++) {
+        GopherItem *s = [streams objectAtIndex:i];
+        NSString *title = [s displayString];
+        if (title == nil) {
+            title = @"";
+        }
+        title = [title stringByReplacingOccurrencesOfString:@"\n" withString:@" "];
+        title = [title stringByReplacingOccurrencesOfString:@"\r" withString:@" "];
+        [m3u appendFormat:@"#EXTINF:-1,%@\n%@\n", title, [s externalURLString]];
+    }
+
+    NSString *path = [[panel URL] path];
+    if (![m3u writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:NULL]) {
+        NSBeep();
+    }
+}
+
 #pragma mark - Menu validation
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem
@@ -247,6 +349,13 @@
         }
         GopherResource *res = [(GopherWindowController *)wc resource];
         return (res != nil && [[res host] length] > 0);
+    }
+    if ([menuItem action] == @selector(exportPlaylist:)) {
+        id wc = [[NSApp keyWindow] windowController];
+        if (![wc isKindOfClass:[GopherWindowController class]]) {
+            return NO;
+        }
+        return ([[(GopherWindowController *)wc playableStreamItems] count] > 0);
     }
     return YES;
 }
@@ -301,6 +410,8 @@
     [self addSubmenu:fileMenu toMainMenu:mainMenu];
     [self addItemTo:fileMenu title:@"Open Location…"
              action:@selector(openLocation:) key:@"l" target:self];
+    [self addItemTo:fileMenu title:@"Export Menu as Playlist…"
+             action:@selector(exportPlaylist:) key:@"" target:self];
     [fileMenu addItem:[NSMenuItem separatorItem]];
     [self addItemTo:fileMenu title:@"Close"
              action:@selector(performClose:) key:@"w" target:nil];
@@ -327,6 +438,30 @@
              action:@selector(addBookmark:) key:@"d" target:self];
     [self addItemTo:bmMenu title:@"Show Bookmarks"
              action:@selector(showBookmarks:) key:@"" target:self];
+
+    // --- Playback menu (radinho) ---
+    // Actions target the shared player directly so they work regardless of the
+    // key window. Space toggles play/pause only while the panel is key (handled
+    // by the panel's play button key equivalent), so it is not a menu shortcut.
+    StreamPlayerController *player = [StreamPlayerController sharedController];
+    NSMenu *playMenu = [[[NSMenu alloc] initWithTitle:@"Playback"] autorelease];
+    [self addSubmenu:playMenu toMainMenu:mainMenu];
+    NSMenuItem *ppItem = [self addItemTo:playMenu title:@"Play / Pause"
+             action:@selector(togglePlayPause:) key:@"p" target:player];
+    [ppItem setKeyEquivalentModifierMask:(NSCommandKeyMask | NSAlternateKeyMask)];
+    NSMenuItem *prevItem = [self addItemTo:playMenu title:@"Previous"
+             action:@selector(playPrevious:)
+                key:[NSString stringWithFormat:@"%C", (unichar)NSLeftArrowFunctionKey]
+             target:player];
+    [prevItem setKeyEquivalentModifierMask:(NSCommandKeyMask | NSAlternateKeyMask)];
+    NSMenuItem *nextItem = [self addItemTo:playMenu title:@"Next"
+             action:@selector(playNext:)
+                key:[NSString stringWithFormat:@"%C", (unichar)NSRightArrowFunctionKey]
+             target:player];
+    [nextItem setKeyEquivalentModifierMask:(NSCommandKeyMask | NSAlternateKeyMask)];
+    [playMenu addItem:[NSMenuItem separatorItem]];
+    [self addItemTo:playMenu title:@"Show Radinho"
+             action:@selector(showPanel) key:@"" target:player];
 
     // --- Window menu ---
     NSMenu *windowMenu = [[[NSMenu alloc] initWithTitle:@"Window"] autorelease];

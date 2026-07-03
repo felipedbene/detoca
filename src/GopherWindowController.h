@@ -42,4 +42,8 @@
 // Render supplied gophermap text as a menu with no network fetch.
 - (void)loadLocalMenuText:(NSString *)text;
 
+// The menu's playable audio-stream items (h/URL: rows whose URL is an MP3
+// stream), in menu order. Used to build the player queue and to export M3U.
+- (NSArray *)playableStreamItems;
+
 @end

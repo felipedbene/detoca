@@ -10,6 +10,7 @@
 #import "GopherTableView.h"
 #import "AttributedStringRenderer.h"
 #import "DTFontManager.h"
+#import "StreamRouting.h"
 #import "AppDelegate.h"
 
 #define DT_STATUS_HEIGHT 22.0
@@ -315,6 +316,20 @@
     }
     AppDelegate *app = (AppDelegate *)[NSApp delegate];
     [app openItem:item fromWindow:[self window]];
+}
+
+- (NSArray *)playableStreamItems
+{
+    NSMutableArray *streams = [NSMutableArray array];
+    NSUInteger i, n = [_items count];
+    for (i = 0; i < n; i++) {
+        GopherItem *item = [_items objectAtIndex:i];
+        if ([item kind] == GopherItemKindHTML &&
+            [StreamRouting isPlayableStreamURLString:[item externalURLString]]) {
+            [streams addObject:item];
+        }
+    }
+    return streams;
 }
 
 #pragma mark - NSTableView data source / delegate

@@ -52,14 +52,18 @@ MODEL_SRC = \
 	src/PLSParser.m \
 	src/SpotSelectors.m \
 	src/DTServerPrefs.m \
-	src/DTMediaKeyRouter.m
+	src/DTMediaKeyRouter.m \
+	src/DTNowSnapshot.m
 
 # Audio (Foundation + AudioToolbox; no AppKit). fio-5 live streaming.
 AUDIO_SRC = \
 	src/DTAudioStreamer.m
 
 # AppKit UI (incl. the fio-2 QTKit player and fio-5 radinho v2).
+# DTSpotAPI is app-only glue (NET + MODEL); it lives here so the lean spikeb/test
+# builds don't have to link it.
 UI_SRC = \
+	src/DTSpotAPI.m \
 	src/DTFontManager.m \
 	src/AttributedStringRenderer.m \
 	src/BookmarkStore.m \
@@ -79,7 +83,7 @@ APP_LIBS = -framework Cocoa -framework ApplicationServices -framework QTKit \
            -framework AudioToolbox
 
 TEST_SRC = $(PARSER_SRC) $(MODEL_SRC) tests/ParserTests.m tests/PlayerTests.m \
-           tests/PrefsTests.m
+           tests/PrefsTests.m tests/SpotAPITests.m
 
 # --- Default target ----------------------------------------------------------
 

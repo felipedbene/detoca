@@ -11,6 +11,7 @@
 @synthesize track = _track;
 @synthesize artist = _artist;
 @synthesize album = _album;
+@synthesize albumId = _albumId;
 @synthesize trackId = _trackId;
 @synthesize positionMs = _positionMs;
 @synthesize durationMs = _durationMs;
@@ -18,6 +19,7 @@
 @synthesize volume = _volume;
 @synthesize queueLen = _queueLen;
 @synthesize apiVersion = _apiVersion;
+@synthesize device = _device;
 
 - (id)init
 {
@@ -34,6 +36,7 @@
     [_track release];
     [_artist release];
     [_album release];
+    [_albumId release];
     [_trackId release];
     [super dealloc];
 }
@@ -76,9 +79,19 @@
     return DTPlaybackStopped;
 }
 
-+ (DTNowSnapshot *)snapshotFromResponse:(NSString *)body
++ (DTDeviceState)deviceFromString:(NSString *)s
 {
-    NSDictionary *f = [self fieldsFromResponse:body];
+    if ([s isEqualToString:@"active"]) {
+        return DTDeviceActive;
+    }
+    if ([s isEqualToString:@"idle"]) {
+        return DTDeviceIdle;
+    }
+    return DTDeviceUnknown;   // absent (older server) or unrecognized
+}
+
++ (DTNowSnapshot *)snapshotFromFields:(NSDictionary *)f
+{
     DTNowSnapshot *snap = [[[DTNowSnapshot alloc] init] autorelease];
 
     snap.apiVersion = [[f objectForKey:@"api"] integerValue];
@@ -86,16 +99,23 @@
     snap.track = [f objectForKey:@"track"];
     snap.artist = [f objectForKey:@"artist"];
     snap.album = [f objectForKey:@"album"];
+    snap.albumId = [f objectForKey:@"album_id"];
     snap.trackId = [f objectForKey:@"track_id"];
     snap.positionMs = [[f objectForKey:@"position_ms"] longLongValue];
     snap.durationMs = [[f objectForKey:@"duration_ms"] longLongValue];
     snap.ts = [[f objectForKey:@"ts"] longLongValue];
     snap.queueLen = [[f objectForKey:@"queue_len"] integerValue];
+    snap.device = [self deviceFromString:[f objectForKey:@"device"]];
 
     NSString *vol = [f objectForKey:@"volume"];
     snap.volume = (vol != nil) ? [vol integerValue] : -1;
 
     return snap;
+}
+
++ (DTNowSnapshot *)snapshotFromResponse:(NSString *)body
+{
+    return [self snapshotFromFields:[self fieldsFromResponse:body]];
 }
 
 - (BOOL)hasTrack
@@ -106,6 +126,11 @@
 - (BOOL)hasVolume
 {
     return (_volume >= 0);
+}
+
+- (BOOL)deviceIsIdle
+{
+    return (_device == DTDeviceIdle);
 }
 
 - (long long)interpolatedPositionMsAtEpochMs:(long long)nowEpochMs

@@ -53,7 +53,11 @@ MODEL_SRC = \
 	src/SpotSelectors.m \
 	src/DTServerPrefs.m \
 	src/DTMediaKeyRouter.m \
-	src/DTNowSnapshot.m
+	src/DTNowSnapshot.m \
+	src/DTSnapshotGuard.m \
+	src/DTTrackItem.m \
+	src/DTPlaylistItem.m \
+	src/DTCoverCache.m
 
 # Audio (Foundation + AudioToolbox; no AppKit). fio-5 live streaming.
 AUDIO_SRC = \
@@ -84,7 +88,10 @@ APP_SRC  = $(PARSER_SRC) $(NET_SRC) $(MODEL_SRC) $(AUDIO_SRC) $(UI_SRC)
 APP_LIBS = -framework Cocoa -framework ApplicationServices -framework QTKit \
            -framework AudioToolbox
 
-TEST_SRC = $(PARSER_SRC) $(MODEL_SRC) tests/ParserTests.m tests/PlayerTests.m \
+# DTCoverCache funnels its async work through DTDispatch (from NET_SRC), so the
+# test bundle links that one extra file even though the rest of NET_SRC is UI-only.
+TEST_SRC = $(PARSER_SRC) $(MODEL_SRC) src/DTDispatch.m \
+           tests/ParserTests.m tests/PlayerTests.m \
            tests/PrefsTests.m tests/SpotAPITests.m
 
 # --- Default target ----------------------------------------------------------

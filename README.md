@@ -86,10 +86,15 @@ Two layers, cleanly separated:
 | `GopherTableView` | Table subclass: Return/Enter activates a row. |
 | `DTFontManager` | Registers bundled Cascadia Code; vends the document font. |
 | `BookmarkStore` | Bookmarks as a hand-editable gophermap. |
-| `PreferencesController` | Server host/port (fio 8) + resolved document font. |
+| `PreferencesController` | Server host/port (fio 8) + resolved document font; dark skin (fio 9). |
 | `DTServerPrefs` | Pure model: host/port validation, defaults, persistence (fio 8). |
 | `DTMediaKeyRouter` | Pure decode/policy for the media keys (fio 8). |
 | `DTMediaKeyTap` | Session `CGEventTap` capturing media keys on its own thread (fio 8). |
+| `DTNowSnapshot` | Pure model/parser for the `/spot/api/1/now` snapshot (fio 9). |
+| `DTSpotAPI` | Client of the `/spot/api/1` machine API — state + transport (fio 9). |
+| `DTPlayerWindowController` | WinAmp-style player window on the API (fio 9). |
+| `DTPlaylistWindowController` | Search → flat playable track list (fio 9). |
+| `DTTheme` | The one dark/amber CRT skin (palette + factories) (fio 9). |
 | `DTInputSheet` | One-field input sheet (search / Open Location). |
 
 ## Design decisions
@@ -235,6 +240,37 @@ when DeToca isn't frontmost; the event is *consumed* so iTunes doesn't launch on
 ⏯. On 10.6 this needs no "assistive devices" toggle. Decode + policy are the
 pure, unit-tested `DTMediaKeyRouter`. While DeToca runs it owns these keys
 globally (no most-recent-media-app arbitration — a deliberate simplification).
+
+### The radinho becomes a player (fio 9)
+
+Through fio 6–7 the radinho was a gopher *browser* with a transport strip — to do
+anything you drilled through menus, and it looked like anything but a player. fio
+9 rebuilds it as a **WinAmp-style player driven by the frozen `/spot/api/1`
+machine API** (fio S1), which is now the source of truth for playback state and
+transport.
+
+- **`DTSpotAPI` + `DTNowSnapshot`** — the data layer. It polls `/now` (state,
+  track/artist/album, `position_ms`/`duration_ms`, `volume`, `queue_len`, `ts`)
+  and drives `play`/`pause`/`next`/`prev`/`volume`/`seek`. The snapshot parser is
+  pure and unit-tested; unknown keys are ignored (the v1 freeze).
+- **Player window** (`DTPlayerWindowController`) — a compact dark HUD: a marquee
+  now-playing line (amber while playing), an **interactive seek bar** (position
+  interpolated between polls via `ts`, drag to `/seek`), elapsed/duration,
+  transport (→ the API), and a volume slider (→ device `/volume`). Audio is still
+  the Icecast stream via `DTAudioStreamer`; the API drives Spotify upstream.
+- **Playlist window** (`DTPlaylistWindowController`) — a clean search box → a
+  **flat, playable track list**, no menu drilling: `/spot/search` results are
+  flattened to tracks and each row's `/spot/track/<id>` becomes a direct
+  `/spot/play?uri=spotify:track:<id>` action. Opened with **Cmd-Y**.
+- **`DTTheme`** — one dark/amber CRT skin (the palette + Cascadia + an amber
+  accent from the app icon), applied to the player, playlist and a repainted-dark
+  Preferences; the fio-8 media keys drive the player's API transport.
+
+Real "up next" queue contents and cover art aren't in the v1 API (only
+`queue_len`) — they arrive with fio S2; the playlist shows search results until
+then. The gopher browse is demoted: a `[SND]` link opens the player, and gopher
+browsing stays available through ordinary gopher windows. `StreamPlayerController`
+(fio 2/5) remains only for the MP3-file queue of `h`/`URL:` links.
 
 ## Bookmarks
 

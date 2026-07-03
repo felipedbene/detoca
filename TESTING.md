@@ -167,6 +167,44 @@ Verified over SSH on the 10.6.8 target (agent-permitting):
 - gopher-spot root (`10.0.100.112:70`) is reachable over the app's socket path
   (`spikeb`), the substrate Test Connection uses.
 
+### The player + playlist (fio 9)
+
+Data layer is unit-tested (`SpotAPITests`: parser, snapshot, interpolation). The
+rest is driven over SSH against the live API (`10.0.100.112:70`) + `screencapture`;
+the physical double-click and media keys are Felipe's manual gate.
+
+- [ ] **Player reflects the API** — with a track playing, the window shows
+      "track — artist" (amber), album, duration, and the **seek bar advances**
+      between polls (interpolated via `ts`).
+- [ ] **Transport** — prev/play-pause/next hit the API (Spotify skips/pauses);
+      the play glyph tracks state.
+- [ ] **Seek** — drag the seek bar → the track jumps (allow ~1–2 s for Spotify's
+      eventual consistency to settle; re-poll shows it).
+- [ ] **Volume** — the slider sets the device volume (audible).
+- [ ] **Playlist search** — Cmd-Y, type a query, Enter → a **flat track list**
+      (no menu drilling), UTF-8 intact.
+- [ ] **Click / Return to play** — double-click (or ↑/↓ + Return) a row → that
+      track plays; the player reflects it; the row glows amber. *(Manual: SSH
+      can't synthesize a real double-click / key-window focus.)*
+- [ ] **Media keys → player** — F7/F8/F9 drive the player's API transport; play
+      while closed reveals + plays.
+- [ ] **Dark skin** — player, playlist and Preferences share the dark/amber CRT
+      look; nothing is a bright system form.
+- [ ] **Listen test** — audio actually comes out of the Icecast stream (fio-5
+      `DTAudioStreamer`, unchanged).
+
+Verified over SSH on the 10.6 target (agent-permitting):
+
+- `make` builds clean under `-Wall` — **zero warnings**; `make test` **78 green**
+  (adds 12: `DTNowSnapshot` parser + interpolation).
+- Live API: with "Construção" playing, the player showed "Construção — Chico
+  Buarque" (amber) / album / 6:23 and the seek advanced **0:33 → 0:39** across two
+  shots; firing a derived `/spot/play?uri` switched the track (Construção →
+  Cotidiano) in `/now`; playlist search "chico buarque" returned a flat 10-track
+  list; row selection works (screenshot).
+- Player, playlist and Preferences all render in the dark/amber skin
+  (screenshots), no clipping. `leaks` = **0** on the running app.
+
 ## Verified on hardware (fio 1)
 
 Built and run on the actual target (Mac OS X 10.6.8, MacBook2,1, i386,

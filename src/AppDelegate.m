@@ -14,7 +14,6 @@
 #import "StreamRouting.h"
 #import "StreamPlayerController.h"
 #import "PlayQueueItem.h"
-#import "GopherSpotControl.h"
 #import "DTServerPrefs.h"
 #import "DTMediaKeyRouter.h"
 #import "DTPlayerWindowController.h"

@@ -76,7 +76,6 @@ UI_SRC = \
 	src/DTMediaKeyTap.m \
 	src/PreferencesController.m \
 	src/StreamPlayerController.m \
-	src/GopherSpotControl.m \
 	src/GopherWindowController.m \
 	src/AppDelegate.m \
 	src/main.m

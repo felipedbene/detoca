@@ -294,6 +294,7 @@
     if (_resolving) {
         NSString *url = [PLSParser firstURLFromPlaylistText:text];
         if ([url length] == 0) {
+            [_player showRadinhoMessage:@"gopher-spot: stream não encontrado"];
             [self finishResolving];
             return;
         }
@@ -334,10 +335,11 @@
 - (void)gopherRequest:(GopherRequest *)request didFailWithError:(NSError *)error
 {
     if (_resolving) {
-        // Could not fetch the playlist; give up quietly.
+        // Could not reach gopher-spot to resolve the stream.
+        [_player showRadinhoMessage:@"gopher-spot indisponível"];
         [self finishResolving];
     }
-    // Poll failures are ignored (transient).
+    // Poll/browse failures are ignored (transient).
 }
 
 @end

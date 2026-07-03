@@ -199,6 +199,17 @@ drill down to their detail pages; `>> Tocar agora` plays. The player stays
 gopher-agnostic — it only hosts an opaque browse view; all gopher logic lives in
 `GopherSpotControl`.
 
+### The Radinho is the star (fio 7)
+
+DeToca opens **straight to the Radinho** — the literal Spotify-over-gopher
+client. On launch it connects to the configured gopher-spot address and shows the
+player + embedded browser; no gopher window unless you want one. The address is a
+preference (`NSUserDefaults` keys `DTSpotHost` / `DTSpotPort` /
+`DTSpotStreamSelector`, defaulting to the debene homelab). **Playback ▸ Open
+Radinho** (Cmd-R) reveals or reconnects it. Gopher browsing is still one click
+away — **Go ▸ Home** (Cmd-Shift-H), **Open Location…** (Cmd-L), or a `gopher://…`
+launch argument — it's just no longer the front door.
+
 ## Bookmarks
 
 Stored as a plain-text gophermap at

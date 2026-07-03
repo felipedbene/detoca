@@ -81,6 +81,13 @@
 // Whether the live stream is currently producing audio.
 - (BOOL)isStreamPlaying;
 
+// Whether the player is in live-stream mode (a gopher-spot session is active).
+- (BOOL)isStreamActive;
+
+// Show the panel with a plain status message (e.g. "Connecting…") without
+// entering any playback mode — used while the radinho is (re)connecting.
+- (void)showRadinhoMessage:(NSString *)message;
+
 // Ensure the live stream is playing: resume if paused, or (re)start it from the
 // given URL if it stopped. No-op if already playing.
 - (void)ensureStreamPlayingURL:(NSString *)urlString;

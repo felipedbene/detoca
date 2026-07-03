@@ -19,6 +19,15 @@
 #define DT_HOME_HOST @"gopher.debene.dev"
 #define DT_HOME_PORT 70
 
+// The radinho is the star: DeToca opens straight to the gopher-spot player.
+// The address is a preference (NSUserDefaults) defaulting to the debene homelab.
+#define DT_SPOT_HOST     @"10.0.100.112"
+#define DT_SPOT_PORT     70
+#define DT_SPOT_STREAM   @"/spot/stream.pls"
+#define DT_SPOT_HOST_KEY   @"DTSpotHost"
+#define DT_SPOT_PORT_KEY   @"DTSpotPort"
+#define DT_SPOT_STREAM_KEY @"DTSpotStreamSelector"
+
 @interface AppDelegate ()
 - (void)buildMenuBar;
 - (void)addSubmenu:(NSMenu *)submenu toMainMenu:(NSMenu *)mainMenu;
@@ -30,6 +39,7 @@
 - (void)openURLExternally:(NSString *)urlString;
 - (void)playStreamsFromWindow:(NSWindow *)window startingAtItem:(GopherItem *)item;
 - (void)exportPlaylist:(id)sender;
+- (void)openRadinho:(id)sender;
 @end
 
 @implementation AppDelegate
@@ -64,8 +74,8 @@
 
 - (void)applicationDidFinishLaunching:(NSNotification *)note
 {
-    // Open a location passed on the command line, otherwise Home, so the app
-    // isn't blank on launch.
+    // A gopher:// launch argument opens that location (for gopher browsing);
+    // otherwise the radinho is the star — open straight to it.
     if ([_initialURLString length] > 0) {
         GopherResource *res = [GopherResource resourceFromLocationString:_initialURLString];
         if (res != nil) {
@@ -73,7 +83,7 @@
             return;
         }
     }
-    [self openHome:self];
+    [self openRadinho:self];
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)app
@@ -236,6 +246,42 @@
 }
 
 #pragma mark - Actions
+
+- (void)openRadinho:(id)sender
+{
+    StreamPlayerController *player = [StreamPlayerController sharedController];
+
+    // If a gopher-spot session is already live, just bring the panel forward.
+    if ([player isStreamActive]) {
+        [player showPanel];
+        return;
+    }
+
+    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
+    NSString *host = [d objectForKey:DT_SPOT_HOST_KEY];
+    if ([host length] == 0) {
+        host = DT_SPOT_HOST;
+    }
+    NSInteger port = ([d objectForKey:DT_SPOT_PORT_KEY] != nil)
+        ? [d integerForKey:DT_SPOT_PORT_KEY] : DT_SPOT_PORT;
+    NSString *selector = [d objectForKey:DT_SPOT_STREAM_KEY];
+    if ([selector length] == 0) {
+        selector = DT_SPOT_STREAM;
+    }
+
+    // Show the panel immediately so the app isn't blank while resolving.
+    [player showRadinhoMessage:@"Conectando ao gopher-spot…"];
+
+    // Drive the same type-s flow a menu click would, straight to the radinho.
+    GopherItem *item = [GopherItem itemWithType:'s'
+                                        display:@"gopher-spot"
+                                       selector:selector
+                                           host:host
+                                           port:port];
+    GopherSpotControl *ctl = [[GopherSpotControl alloc] initWithSoundItem:item player:player];
+    [ctl begin];
+    [ctl release];
+}
 
 - (void)openHome:(id)sender
 {
@@ -459,6 +505,10 @@
     StreamPlayerController *player = [StreamPlayerController sharedController];
     NSMenu *playMenu = [[[NSMenu alloc] initWithTitle:@"Playback"] autorelease];
     [self addSubmenu:playMenu toMainMenu:mainMenu];
+    // The radinho is the star: open/reveal it (Cmd-R), connecting if needed.
+    [self addItemTo:playMenu title:@"Open Radinho"
+             action:@selector(openRadinho:) key:@"r" target:self];
+    [playMenu addItem:[NSMenuItem separatorItem]];
     NSMenuItem *ppItem = [self addItemTo:playMenu title:@"Play / Pause"
              action:@selector(togglePlayPause:) key:@"p" target:player];
     [ppItem setKeyEquivalentModifierMask:(NSCommandKeyMask | NSAlternateKeyMask)];
@@ -472,10 +522,6 @@
                 key:[NSString stringWithFormat:@"%C", (unichar)NSRightArrowFunctionKey]
              target:player];
     [nextItem setKeyEquivalentModifierMask:(NSCommandKeyMask | NSAlternateKeyMask)];
-    [playMenu addItem:[NSMenuItem separatorItem]];
-    [self addItemTo:playMenu title:@"Show Radinho"
-             action:@selector(showPanel) key:@"" target:player];
-
     // --- Window menu ---
     NSMenu *windowMenu = [[[NSMenu alloc] initWithTitle:@"Window"] autorelease];
     [self addSubmenu:windowMenu toMainMenu:mainMenu];

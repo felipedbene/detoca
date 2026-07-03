@@ -243,6 +243,21 @@ static StreamPlayerController *sSharedPlayer = nil;
     return (_mode == DTPlayerModeStream && _streamer != nil && _playing);
 }
 
+- (BOOL)isStreamActive
+{
+    return (_mode == DTPlayerModeStream);
+}
+
+- (void)showRadinhoMessage:(NSString *)message
+{
+    [self ensurePanel];
+    [self showPanel];
+    [self showTitle:(message ? message : @"")];
+    [_positionLabel setStringValue:@""];
+    [_timeLabel setStringValue:@"0:00"];
+    [self updatePlayButton];
+}
+
 - (void)ensureStreamPlayingURL:(NSString *)urlString
 {
     if (_mode != DTPlayerModeStream) {

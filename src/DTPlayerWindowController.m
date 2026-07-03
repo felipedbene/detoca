@@ -8,6 +8,7 @@
 #import "DTNowSnapshot.h"
 #import "DTServerPrefs.h"
 #import "PLSParser.h"
+#import "DTTheme.h"
 
 #define DT_PW_W 340.0
 #define DT_PW_H 160.0
@@ -65,20 +66,10 @@ static NSString *DTFormatMs(long long ms)
 
 #pragma mark - Panel
 
-// A borderless HUD-style label (Phase 4 folds this into DTTheme).
 - (NSTextField *)labelFrame:(NSRect)f size:(CGFloat)s dim:(BOOL)dim
 {
-    NSTextField *l = [[[NSTextField alloc] initWithFrame:f] autorelease];
-    [l setBezeled:NO];
-    [l setBordered:NO];
-    [l setEditable:NO];
-    [l setSelectable:NO];
-    [l setDrawsBackground:NO];
-    [l setFont:[NSFont systemFontOfSize:s]];
-    [l setTextColor:(dim ? [NSColor colorWithDeviceWhite:0.65 alpha:1.0]
-                         : [NSColor colorWithDeviceWhite:0.95 alpha:1.0])];
-    [l setStringValue:@""];
-    return l;
+    return [DTTheme labelWithFrame:f size:s
+                            color:(dim ? [DTTheme textDim] : [DTTheme textBright])];
 }
 
 - (NSButton *)buttonFrame:(NSRect)f title:(NSString *)title action:(SEL)action
@@ -343,8 +334,12 @@ static NSString *DTFormatMs(long long ms)
         [_subLabel setStringValue:(snap.album ? snap.album : @"")];
     } else {
         [_titleLabel setStringValue:@"Nada tocando"];
-        [_subLabel setStringValue:(snap.state == DTPlaybackStopped ? @"" : @"")];
+        [_subLabel setStringValue:@""];
     }
+
+    // The now-playing line glows amber while playing.
+    [_titleLabel setTextColor:(snap.state == DTPlaybackPlaying
+                               ? [DTTheme accent] : [DTTheme textBright])];
 
     // Play/pause glyph.
     [_playButton setTitle:(snap.state == DTPlaybackPlaying ? @"❙❙" : @"▶")];

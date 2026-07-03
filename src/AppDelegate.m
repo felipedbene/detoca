@@ -131,14 +131,9 @@
     GopherItemKind kind = [item kind];
 
     if (kind == GopherItemKindSound) {
-        // gopher-spot stream: resolve the PLS over gopher and play in the
-        // radinho with the gopher control plane. GopherSpotControl manages its
-        // own lifetime (self-retains through the async resolve).
-        GopherSpotControl *ctl =
-            [[GopherSpotControl alloc] initWithSoundItem:item
-                                                  player:[StreamPlayerController sharedController]];
-        [ctl begin];
-        [ctl release];
+        // fio 9: a gopher-spot stream link opens the WinAmp-style player (which
+        // resolves the stream + drives /spot/api/1), not the old browse radinho.
+        [[self player] show];
         return;
     }
 

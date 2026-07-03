@@ -6,6 +6,7 @@
 #import "PreferencesController.h"
 #import "DTFontManager.h"
 #import "DTServerPrefs.h"
+#import "DTTheme.h"
 #import "AppDelegate.h"
 
 @interface PreferencesController ()
@@ -20,16 +21,14 @@
 
 @implementation PreferencesController
 
-// Helper: a non-editable, borderless label.
+// Helper: a non-editable, borderless label in the dark skin.
 static NSTextField *MakeLabel(NSRect frame, NSString *text, BOOL bold)
 {
-    NSTextField *label = [[[NSTextField alloc] initWithFrame:frame] autorelease];
+    NSTextField *label = [DTTheme labelWithFrame:frame
+                                            size:(bold ? 13.0 : 12.0)
+                                           color:(bold ? [DTTheme textBright]
+                                                       : [DTTheme textPrimary])];
     [label setStringValue:(text ? text : @"")];
-    [label setBezeled:NO];
-    [label setBordered:NO];
-    [label setEditable:NO];
-    [label setSelectable:NO];
-    [label setDrawsBackground:NO];
     if (bold) {
         [label setFont:[NSFont boldSystemFontOfSize:13.0]];
     }
@@ -46,6 +45,7 @@ static NSTextField *MakeLabel(NSRect frame, NSString *text, BOOL bold)
                       defer:YES];
     [window setTitle:@"Preferences"];
     [window setReleasedWhenClosed:NO];
+    [window setBackgroundColor:[DTTheme background]];   // dark skin (fio 9)
 
     self = [super initWithWindow:window];
     [window release];
@@ -64,15 +64,14 @@ static NSTextField *MakeLabel(NSRect frame, NSString *text, BOOL bold)
         @"Where the radinho connects. Cmd-R and the media keys use this address.",
         NO);
     [srvSub setFont:[NSFont systemFontOfSize:11.0]];
-    [srvSub setTextColor:[NSColor darkGrayColor]];
+    [srvSub setTextColor:[DTTheme textDim]];
     [content addSubview:srvSub];
 
     NSTextField *hostLabel = MakeLabel(NSMakeRect(20, 252, 44, 22), @"Host:", NO);
     [hostLabel setAlignment:NSRightTextAlignment];
     [content addSubview:hostLabel];
 
-    _hostField = [[NSTextField alloc] initWithFrame:NSMakeRect(70, 250, 296, 24)];
-    [_hostField setBezelStyle:NSTextFieldSquareBezel];
+    _hostField = [[DTTheme darkFieldWithFrame:NSMakeRect(70, 250, 296, 24)] retain];
     [[_hostField cell] setPlaceholderString:@"10.0.100.112"];
     [_hostField setDelegate:self];
     [content addSubview:_hostField];
@@ -81,28 +80,23 @@ static NSTextField *MakeLabel(NSRect frame, NSString *text, BOOL bold)
     [portLabel setAlignment:NSRightTextAlignment];
     [content addSubview:portLabel];
 
-    _portField = [[NSTextField alloc] initWithFrame:NSMakeRect(418, 250, 62, 24)];
-    [_portField setBezelStyle:NSTextFieldSquareBezel];
+    _portField = [[DTTheme darkFieldWithFrame:NSMakeRect(418, 250, 62, 24)] retain];
     [[_portField cell] setPlaceholderString:@"70"];
     [_portField setDelegate:self];
     [content addSubview:_portField];
 
-    _testButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, 210, 150, 30)];
-    [_testButton setTitle:@"Test Connection"];
-    [_testButton setBezelStyle:NSRoundedBezelStyle];
-    [_testButton setTarget:self];
-    [_testButton setAction:@selector(testConnection:)];
+    _testButton = [DTTheme buttonWithFrame:NSMakeRect(20, 210, 150, 30)
+                                     title:@"Test Connection"
+                                    target:self
+                                    action:@selector(testConnection:)];
     [content addSubview:_testButton];
-    [_testButton release];
 
-    _saveButton = [[NSButton alloc] initWithFrame:NSMakeRect(400, 210, 100, 30)];
-    [_saveButton setTitle:@"Save"];
-    [_saveButton setBezelStyle:NSRoundedBezelStyle];
+    _saveButton = [DTTheme buttonWithFrame:NSMakeRect(400, 210, 100, 30)
+                                     title:@"Save"
+                                    target:self
+                                    action:@selector(saveServer:)];
     [_saveButton setKeyEquivalent:@"\r"];   // Return activates Save
-    [_saveButton setTarget:self];
-    [_saveButton setAction:@selector(saveServer:)];
     [content addSubview:_saveButton];
-    [_saveButton release];
 
     _statusLabel = [MakeLabel(NSMakeRect(20, 184, 480, 18), @"", NO) retain];
     [_statusLabel setFont:[NSFont systemFontOfSize:11.0]];
@@ -122,22 +116,18 @@ static NSTextField *MakeLabel(NSRect frame, NSString *text, BOOL bold)
     NSTextField *sub = MakeLabel(NSMakeRect(20, 118, 480, 18),
         @"Used to render text documents and ANSI/braille maps.", NO);
     [sub setFont:[NSFont systemFontOfSize:11.0]];
-    [sub setTextColor:[NSColor darkGrayColor]];
+    [sub setTextColor:[DTTheme textDim]];
     [content addSubview:sub];
 
-    _fontField = [[NSTextField alloc] initWithFrame:NSMakeRect(20, 82, 390, 24)];
+    _fontField = [[DTTheme darkFieldWithFrame:NSMakeRect(20, 82, 390, 24)] retain];
     [_fontField setEditable:NO];
     [_fontField setSelectable:YES];
-    [_fontField setBezeled:YES];
-    [_fontField setBezelStyle:NSTextFieldRoundedBezel];
     [content addSubview:_fontField];
 
-    NSButton *change = [[[NSButton alloc]
-        initWithFrame:NSMakeRect(416, 80, 90, 28)] autorelease];
-    [change setTitle:@"Change…"];
-    [change setBezelStyle:NSRoundedBezelStyle];
-    [change setTarget:self];
-    [change setAction:@selector(chooseFont:)];
+    NSButton *change = [DTTheme buttonWithFrame:NSMakeRect(416, 80, 90, 28)
+                                          title:@"Change…"
+                                         target:self
+                                         action:@selector(chooseFont:)];
     [content addSubview:change];
 
     NSTextField *note = MakeLabel(NSMakeRect(20, 24, 480, 34),
@@ -145,7 +135,7 @@ static NSTextField *MakeLabel(NSRect frame, NSString *text, BOOL bold)
         @"If the resolved font above is not Cascadia Code, maps may misalign.",
         NO);
     [note setFont:[NSFont systemFontOfSize:11.0]];
-    [note setTextColor:[NSColor darkGrayColor]];
+    [note setTextColor:[DTTheme textDim]];
     [[note cell] setWraps:YES];
     [content addSubview:note];
 
@@ -213,7 +203,7 @@ static NSTextField *MakeLabel(NSRect frame, NSString *text, BOOL bold)
 - (void)setStatus:(NSString *)text color:(NSColor *)color
 {
     [_statusLabel setStringValue:(text ? text : @"")];
-    [_statusLabel setTextColor:(color ? color : [NSColor darkGrayColor])];
+    [_statusLabel setTextColor:(color ? color : [DTTheme textDim])];
 }
 
 - (void)testConnection:(id)sender
@@ -224,7 +214,7 @@ static NSTextField *MakeLabel(NSRect frame, NSString *text, BOOL bold)
     NSInteger port = [_portField integerValue];
     if (![DTServerPrefs isValidHost:host port:port]) {
         [self setStatus:@"Enter a valid host and port (1–65535)."
-                  color:[NSColor redColor]];
+                  color:[DTTheme error]];
         return;
     }
 
@@ -239,7 +229,7 @@ static NSTextField *MakeLabel(NSRect frame, NSString *text, BOOL bold)
     _testStart = [[NSDate alloc] init];
 
     [self setStatus:[NSString stringWithFormat:@"Testing %@:%ld…", host, (long)port]
-              color:[NSColor darkGrayColor]];
+              color:[DTTheme textDim]];
     [_testButton setEnabled:NO];
     [_testRequest start];
 }
@@ -252,7 +242,7 @@ static NSTextField *MakeLabel(NSRect frame, NSString *text, BOOL bold)
     double ms = -[_testStart timeIntervalSinceNow] * 1000.0;
     [self setStatus:[NSString stringWithFormat:@"Connected · %.0f ms · %lu bytes",
                      ms, (unsigned long)[data length]]
-              color:[NSColor colorWithCalibratedRed:0.0 green:0.5 blue:0.0 alpha:1.0]];
+              color:[DTTheme success]];
     [_testRequest release];
     _testRequest = nil;
     [self validateInputs];
@@ -268,7 +258,7 @@ static NSTextField *MakeLabel(NSRect frame, NSString *text, BOOL bold)
         reason = @"connection failed";
     }
     [self setStatus:[NSString stringWithFormat:@"Failed: %@", reason]
-              color:[NSColor redColor]];
+              color:[DTTheme error]];
     [_testRequest release];
     _testRequest = nil;
     [self validateInputs];
@@ -295,10 +285,10 @@ static NSTextField *MakeLabel(NSRect frame, NSString *text, BOOL bold)
             [delegate reconnectRadinho];
         }
         [self setStatus:@"Saved — reconnecting the radinho…"
-                  color:[NSColor colorWithCalibratedRed:0.0 green:0.5 blue:0.0 alpha:1.0]];
+                  color:[DTTheme success]];
     } else {
         [self setStatus:@"Saved (no change)."
-                  color:[NSColor darkGrayColor]];
+                  color:[DTTheme textDim]];
     }
 }
 

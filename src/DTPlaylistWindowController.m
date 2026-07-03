@@ -8,6 +8,7 @@
 #import "GopherMenuParser.h"
 #import "GopherItem.h"
 #import "GopherTableView.h"
+#import "DTTheme.h"
 
 #define DT_PL_W 300.0
 #define DT_PL_H 360.0
@@ -62,8 +63,8 @@
 
     NSView *c = [_panel contentView];
 
-    _searchField = [[[NSTextField alloc]
-        initWithFrame:NSMakeRect(12, DT_PL_H - 34, DT_PL_W - 24, 22)] autorelease];
+    _searchField = [DTTheme darkFieldWithFrame:
+        NSMakeRect(12, DT_PL_H - 34, DT_PL_W - 24, 22)];
     [[_searchField cell] setPlaceholderString:@"buscar músicas…"];
     [_searchField setAutoresizingMask:(NSViewWidthSizable | NSViewMinYMargin)];
     [_searchField setTarget:self];
@@ -76,12 +77,12 @@
     [scroll setAutohidesScrollers:YES];
     [scroll setBorderType:NSBezelBorder];
     [scroll setDrawsBackground:YES];
-    [scroll setBackgroundColor:[NSColor blackColor]];
+    [scroll setBackgroundColor:[DTTheme background]];
     [scroll setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
 
     // GopherTableView adds Return-to-activate (fires the double-action).
     _table = [[[GopherTableView alloc] initWithFrame:[[scroll contentView] bounds]] autorelease];
-    [_table setBackgroundColor:[NSColor blackColor]];
+    [_table setBackgroundColor:[DTTheme background]];
     [_table setHeaderView:nil];
     [_table setUsesAlternatingRowBackgroundColors:NO];
     [_table setGridStyleMask:NSTableViewGridNone];
@@ -225,10 +226,7 @@
 {
     // Dark list; the currently-playing row glows (Phase 4 folds this into DTTheme).
     if ([cell respondsToSelector:@selector(setTextColor:)]) {
-        NSColor *color = (row == _playingRow)
-            ? [NSColor colorWithDeviceRed:1.0 green:0.72 blue:0.24 alpha:1.0]
-            : [NSColor colorWithDeviceWhite:0.90 alpha:1.0];
-        [cell setTextColor:color];
+        [cell setTextColor:(row == _playingRow ? [DTTheme accent] : [DTTheme textPrimary])];
     }
 }
 

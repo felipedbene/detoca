@@ -63,6 +63,7 @@ AUDIO_SRC = \
 # DTSpotAPI is app-only glue (NET + MODEL); it lives here so the lean spikeb/test
 # builds don't have to link it.
 UI_SRC = \
+	src/DTTheme.m \
 	src/DTSpotAPI.m \
 	src/DTPlayerWindowController.m \
 	src/DTPlaylistWindowController.m \

@@ -35,9 +35,13 @@
 
     NSMutableArray     *_searchRows;      // of NSMutableDictionary {track,artist,uri,albumId,image}
     NSMutableArray     *_queueRows;       // same shape, no uri action
-    NSInteger           _mode;            // DTPlaylistModeSearch | DTPlaylistModeQueue
+    NSMutableArray     *_playlistRows;    // of DTPlaylistItem (name + count; play by context)
+    NSInteger           _mode;            // DTPlaylistModeSearch | Queue | Playlists
     NSUInteger          _searchGen;       // drops stale search responses
     BOOL                _queueLoaded;     // fetched at least once this session
+    BOOL                _playlistsLoaded; // full 155-list cached this session
+    BOOL                _playlistsLoading;// a paginated load is in flight
+    NSInteger           _playlistsTotal;  // Spotify's grand total (for paging)
 }
 
 - (void)show;

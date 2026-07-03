@@ -7,6 +7,7 @@
 #import "DTSpotAPI.h"
 #import "DTCoverCache.h"
 #import "DTTrackItem.h"
+#import "DTPlaylistItem.h"
 #import "DTTrackCell.h"
 #import "GopherTableView.h"
 #import "DTPlayerWindowController.h"   // DTPlayerNowChangedNotification
@@ -14,11 +15,13 @@
 
 #define DT_PL_W 340.0
 #define DT_PL_H 400.0
-#define DT_ROW_H 72.0
+#define DT_ROW_H 72.0        // track rows (thumbnail)
+#define DT_PL_ROW_H 22.0     // playlist rows (text only)
 
 enum {
-    DTPlaylistModeSearch = 0,
-    DTPlaylistModeQueue  = 1
+    DTPlaylistModeSearch    = 0,
+    DTPlaylistModeQueue     = 1,
+    DTPlaylistModePlaylists = 2
 };
 
 @interface DTPlaylistWindowController ()
@@ -33,6 +36,9 @@ enum {
 - (void)clearStatus;
 - (void)updateEmptyState;
 - (void)playerNowChanged:(NSNotification *)note;
+- (void)loadAllPlaylists;
+- (void)loadPlaylistsPageAt:(NSInteger)offset;
+- (void)configureColumnForMode;
 - (NSArray *)rowsForCurrentMode;
 - (NSMutableArray *)rowsFromItems:(NSArray *)items;
 - (void)kickThumbnailsFor:(NSMutableArray *)rows;
@@ -48,6 +54,7 @@ enum {
         _api = [[DTSpotAPI alloc] init];
         _searchRows = [[NSMutableArray alloc] init];
         _queueRows = [[NSMutableArray alloc] init];
+        _playlistRows = [[NSMutableArray alloc] init];
         _mode = DTPlaylistModeSearch;
 
         // Own cover cache (its own memory), sharing the on-disk store with the
@@ -78,6 +85,7 @@ enum {
     [_coverCache release];
     [_searchRows release];
     [_queueRows release];
+    [_playlistRows release];
     [_panel release];
     [super dealloc];
 }
@@ -104,12 +112,13 @@ enum {
 
     NSView *c = [_panel contentView];
 
-    // --- Mode control (Busca | Fila; Playlists lands in fio 10/4) ---
+    // --- Mode control (Busca | Fila | Playlists) ---
     _modeControl = [[[NSSegmentedControl alloc]
         initWithFrame:NSMakeRect(12, DT_PL_H - 36, DT_PL_W - 24, 22)] autorelease];
-    [_modeControl setSegmentCount:2];
+    [_modeControl setSegmentCount:3];
     [_modeControl setLabel:@"Busca" forSegment:0];
     [_modeControl setLabel:@"Fila" forSegment:1];
+    [_modeControl setLabel:@"Playlists" forSegment:2];
     [[_modeControl cell] setTrackingMode:NSSegmentSwitchTrackingSelectOne];
     [_modeControl setSelectedSegment:DTPlaylistModeSearch];
     [_modeControl setTarget:self];
@@ -224,13 +233,37 @@ enum {
 {
     _mode = [_modeControl selectedSegment];
     [self layoutForMode];
+    [self configureColumnForMode];
     [_table reloadData];
     if (_mode == DTPlaylistModeQueue) {
         [self fetchQueue];
+    } else if (_mode == DTPlaylistModePlaylists) {
+        [self loadAllPlaylists];
     } else {
         [_panel makeFirstResponder:_searchField];
     }
     [self updateEmptyState];
+}
+
+// The list shows two very different row shapes: tall track rows with a 64px
+// thumbnail (Busca / Fila) vs. short text rows for playlists (no cover — Spotify
+// exposes no playlist image, and track drill-down is 403 in dev-mode).
+- (void)configureColumnForMode
+{
+    NSTableColumn *col = [[_table tableColumns] objectAtIndex:0];
+    if (_mode == DTPlaylistModePlaylists) {
+        [_table setRowHeight:DT_PL_ROW_H];
+        NSTextFieldCell *tc = [[[NSTextFieldCell alloc] init] autorelease];
+        [tc setFont:[DTTheme uiFontOfSize:12.0]];
+        [tc setTextColor:[DTTheme textPrimary]];
+        [tc setDrawsBackground:NO];
+        [tc setBordered:NO];
+        [tc setLineBreakMode:NSLineBreakByTruncatingTail];
+        [col setDataCell:tc];
+    } else {
+        [_table setRowHeight:DT_ROW_H];
+        [col setDataCell:[[[DTTrackCell alloc] init] autorelease]];
+    }
 }
 
 #pragma mark - Search + actions
@@ -275,19 +308,81 @@ enum {
 
 - (void)onPlay:(id)sender
 {
-    if (_mode != DTPlaylistModeSearch) {
-        return;
-    }
     NSInteger row = [self actionRow];
-    if (row < 0 || row >= (NSInteger)[_searchRows count]) {
+    if (row < 0) {
         return;
     }
-    NSString *uri = [[_searchRows objectAtIndex:row] objectForKey:@"uri"];
-    if ([uri length] == 0) {
+    if (_mode == DTPlaylistModeSearch) {
+        if (row >= (NSInteger)[_searchRows count]) {
+            return;
+        }
+        NSString *uri = [[_searchRows objectAtIndex:row] objectForKey:@"uri"];
+        if ([uri length] == 0) {
+            return;
+        }
+        [_api playTrackURI:uri handler:nil];   // player reflects it on its next poll
+        [_statusLabel setStringValue:@"tocando…"];
+    } else if (_mode == DTPlaylistModePlaylists) {
+        if (row >= (NSInteger)[_playlistRows count]) {
+            return;
+        }
+        // Play the playlist as a CONTEXT (offset 0) — next/prev then follow the
+        // playlist order. No track drill-down (Spotify 403s playlist reads); this
+        // path resolves server-side and needs no track-read access.
+        DTPlaylistItem *pl = [_playlistRows objectAtIndex:row];
+        NSString *ctx = [pl contextURI];
+        if ([ctx length] == 0) {
+            return;
+        }
+        [_api playContextURI:ctx offset:0 handler:nil];
+    }
+    // Queue mode is display-only.
+}
+
+#pragma mark - Playlists (list + play-by-context)
+
+- (void)loadAllPlaylists
+{
+    if (_playlistsLoaded) {
+        [self updateEmptyState];
+        return;   // cached for the session
+    }
+    if (_playlistsLoading) {
         return;
     }
-    [_api playTrackURI:uri handler:nil];   // player reflects it on its next poll
-    [_statusLabel setStringValue:@"tocando…"];
+    _playlistsLoading = YES;
+    [_playlistRows removeAllObjects];
+    [self updateEmptyState];
+    [self loadPlaylistsPageAt:0];
+}
+
+- (void)loadPlaylistsPageAt:(NSInteger)offset
+{
+    [_api playlistsAtOffset:offset handler:^(NSArray *items, NSInteger total,
+                                             NSInteger off, DTSpotAPIError *error) {
+        if (error != nil) {
+            _playlistsLoading = NO;
+            if (_mode == DTPlaylistModePlaylists) {
+                [_emptyLabel setStringValue:@"erro ao carregar playlists"];
+                [_emptyLabel setHidden:NO];
+            }
+            return;
+        }
+        [_playlistRows addObjectsFromArray:items];
+        _playlistsTotal = total;
+        NSInteger loaded = (NSInteger)[_playlistRows count];
+        if (_mode == DTPlaylistModePlaylists) {
+            [_table reloadData];
+        }
+        // Page through the whole list (20/page) once, then cache it.
+        if (loaded < total && [items count] > 0) {
+            [self loadPlaylistsPageAt:loaded];
+        } else {
+            _playlistsLoading = NO;
+            _playlistsLoaded = YES;
+        }
+        [self updateEmptyState];
+    }];
 }
 
 - (void)onEnqueue:(id)sender
@@ -369,15 +464,36 @@ enum {
 
 - (void)updateEmptyState
 {
-    BOOL show = (_mode == DTPlaylistModeQueue) && _queueLoaded && ([_queueRows count] == 0);
-    [_emptyLabel setHidden:!show];
+    NSString *msg = nil;
+    if (_mode == DTPlaylistModeQueue) {
+        if (_queueLoaded && [_queueRows count] == 0) {
+            msg = @"rádio automático — a fila está vazia";
+        }
+    } else if (_mode == DTPlaylistModePlaylists) {
+        if ([_playlistRows count] == 0) {
+            msg = _playlistsLoading ? @"carregando playlists…"
+                : (_playlistsLoaded ? @"nenhuma playlist" : nil);
+        }
+    }
+    if (msg != nil) {
+        [_emptyLabel setStringValue:msg];
+        [_emptyLabel setHidden:NO];
+    } else {
+        [_emptyLabel setHidden:YES];
+    }
 }
 
 #pragma mark - Rows + thumbnails
 
 - (NSArray *)rowsForCurrentMode
 {
-    return (_mode == DTPlaylistModeQueue) ? _queueRows : _searchRows;
+    if (_mode == DTPlaylistModeQueue) {
+        return _queueRows;
+    }
+    if (_mode == DTPlaylistModePlaylists) {
+        return _playlistRows;
+    }
+    return _searchRows;
 }
 
 - (NSMutableArray *)rowsFromItems:(NSArray *)items
@@ -444,7 +560,29 @@ enum {
     if (row < 0 || row >= (NSInteger)[rows count]) {
         return nil;
     }
+    if (_mode == DTPlaylistModePlaylists) {
+        DTPlaylistItem *pl = [rows objectAtIndex:row];
+        NSString *name = ([pl.name length] > 0) ? pl.name : @"(sem nome)";
+        // tracks_len is 0 for ~all playlists under Spotify's dev-mode block, so
+        // show the count only when it's meaningfully present.
+        if (pl.tracksLen > 0) {
+            return [NSString stringWithFormat:@"%@   ·   %ld faixas", name, (long)pl.tracksLen];
+        }
+        return name;
+    }
     return [rows objectAtIndex:row];   // the { track, artist, image } dict
+}
+
+- (void)tableView:(NSTableView *)tableView
+  willDisplayCell:(id)cell
+   forTableColumn:(NSTableColumn *)column
+              row:(NSInteger)row
+{
+    // Keep playlist text legible on the dark list (the text cell would otherwise
+    // draw near-black); DTTrackCell ignores this and draws its own colors.
+    if (_mode == DTPlaylistModePlaylists && [cell respondsToSelector:@selector(setTextColor:)]) {
+        [cell setTextColor:[DTTheme textPrimary]];
+    }
 }
 
 #pragma mark - NSWindowDelegate

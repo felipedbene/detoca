@@ -18,6 +18,7 @@
 #import "DTServerPrefs.h"
 #import "DTMediaKeyRouter.h"
 #import "DTPlayerWindowController.h"
+#import "DTPlaylistWindowController.h"
 
 #define DT_HOME_HOST @"gopher.debene.dev"
 #define DT_HOME_PORT 70
@@ -38,6 +39,8 @@
 - (void)playStreamsFromWindow:(NSWindow *)window startingAtItem:(GopherItem *)item;
 - (void)exportPlaylist:(id)sender;
 - (DTPlayerWindowController *)player;
+- (DTPlaylistWindowController *)playlist;
+- (void)openPlaylist:(id)sender;
 @end
 
 @implementation AppDelegate
@@ -60,6 +63,7 @@
     [_initialURLString release];
     [_mediaKeys release];
     [_player release];
+    [_playlist release];
     [super dealloc];
 }
 
@@ -273,6 +277,19 @@
 {
     // fio 9: the radinho is now the WinAmp-style player, driven by /spot/api/1.
     [[self player] show];
+}
+
+- (DTPlaylistWindowController *)playlist
+{
+    if (_playlist == nil) {
+        _playlist = [[DTPlaylistWindowController alloc] init];
+    }
+    return _playlist;
+}
+
+- (void)openPlaylist:(id)sender
+{
+    [[self playlist] show];
 }
 
 - (void)reconnectRadinho
@@ -544,6 +561,8 @@
     // The radinho is the star: open/reveal it (Cmd-R), connecting if needed.
     [self addItemTo:playMenu title:@"Open Radinho"
              action:@selector(openRadinho:) key:@"r" target:self];
+    [self addItemTo:playMenu title:@"Playlist / Search…"
+             action:@selector(openPlaylist:) key:@"y" target:self];
     [playMenu addItem:[NSMenuItem separatorItem]];
     NSMenuItem *ppItem = [self addItemTo:playMenu title:@"Play / Pause"
              action:@selector(togglePlayPause:) key:@"p" target:player];

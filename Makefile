@@ -65,6 +65,7 @@ AUDIO_SRC = \
 UI_SRC = \
 	src/DTSpotAPI.m \
 	src/DTPlayerWindowController.m \
+	src/DTPlaylistWindowController.m \
 	src/DTFontManager.m \
 	src/AttributedStringRenderer.m \
 	src/BookmarkStore.m \

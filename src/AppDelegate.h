@@ -16,13 +16,15 @@
 @class GopherWindowController;
 @class PreferencesController;
 @class DTPlayerWindowController;
+@class DTPlaylistWindowController;
 
 @interface AppDelegate : NSObject <NSApplicationDelegate, DTMediaKeyTapDelegate> {
-    NSMutableArray          *_controllers;   // open GopherWindowControllers
-    PreferencesController   *_prefs;
-    NSString                *_initialURLString;  // optional launch location
-    DTMediaKeyTap           *_mediaKeys;     // global media-key capture (fio 8)
-    DTPlayerWindowController *_player;        // the WinAmp-style player (fio 9)
+    NSMutableArray            *_controllers;   // open GopherWindowControllers
+    PreferencesController     *_prefs;
+    NSString                  *_initialURLString;  // optional launch location
+    DTMediaKeyTap             *_mediaKeys;     // global media-key capture (fio 8)
+    DTPlayerWindowController  *_player;        // the WinAmp-style player (fio 9)
+    DTPlaylistWindowController *_playlist;     // search + playable list (fio 9)
 }
 
 // If set before launch finishes, this location opens instead of Home. Set from

@@ -6,12 +6,18 @@
 #import "DTPlayerWindowController.h"
 #import "DTSpotAPI.h"
 #import "DTNowSnapshot.h"
+#import "DTCoverCache.h"
 #import "DTServerPrefs.h"
 #import "PLSParser.h"
 #import "DTTheme.h"
 
-#define DT_PW_W 340.0
-#define DT_PW_H 160.0
+// Landscape "WinAmp with art" layout: a big square cover on the left, the
+// now-playing text + transport filling the right. Fixed size — the simplest
+// thing that stays composed (the plan explicitly allows a fixed window).
+#define DT_PW_W 452.0
+#define DT_PW_H 184.0
+#define DT_COVER_SIDE 156.0
+#define DT_COVER_SIZE 300   // fetch the 300 cover; it stays crisp scaled to 156
 #define DT_STREAM_SELECTOR_KEY @"DTSpotStreamSelector"
 #define DT_STREAM_SELECTOR_DEFAULT @"/spot/stream.pls"
 
@@ -39,6 +45,7 @@ static NSString *DTFormatMs(long long ms)
 - (void)pollNow;
 - (void)tick;
 - (void)applySnapshot:(DTNowSnapshot *)snap;
+- (void)updateCoverForSnapshot:(DTNowSnapshot *)snap;
 - (DTNowHandler)applyHandler;
 - (NSString *)streamSelector;
 @end
@@ -50,6 +57,16 @@ static NSString *DTFormatMs(long long ms)
     self = [super init];
     if (self != nil) {
         _api = [[DTSpotAPI alloc] init];
+
+        // The cover cache fetches through the API (raw JPEG bytes); the injection
+        // keeps DTCoverCache itself pure/off-network for tests.
+        _coverCache = [[DTCoverCache alloc] init];
+        DTSpotAPI *api = _api;
+        [_coverCache setFetcher:^(NSString *albumId, NSInteger size, void (^done)(NSData *)) {
+            [api coverForAlbum:albumId size:size handler:^(NSData *jpeg, DTSpotAPIError *err) {
+                done(jpeg);
+            }];
+        }];
     }
     return self;
 }
@@ -59,6 +76,9 @@ static NSString *DTFormatMs(long long ms)
     [self stopSession];
     [_panel release];
     [_api release];
+    [_coverCache release];
+    [_currentAlbumId release];
+    [_placeholderCover release];
     [_last release];
     [_streamURL release];
     [super dealloc];
@@ -103,15 +123,33 @@ static NSString *DTFormatMs(long long ms)
 
     NSView *c = [_panel contentView];
 
-    _titleLabel = [self labelFrame:NSMakeRect(16, 132, 308, 20) size:13.0 dim:NO];
-    [[_titleLabel cell] setLineBreakMode:NSLineBreakByTruncatingMiddle];
+    // --- Cover (left): the one colored area; placeholder = amber CRT gopher ---
+    _placeholderCover = [[NSApp applicationIconImage] retain];
+    _coverView = [[[NSImageView alloc] initWithFrame:
+                   NSMakeRect(14, 14, DT_COVER_SIDE, DT_COVER_SIDE)] autorelease];
+    [_coverView setImageFrameStyle:NSImageFrameNone];
+    [_coverView setImageScaling:NSImageScaleProportionallyUpOrDown];
+    [_coverView setImageAlignment:NSImageAlignCenter];
+    [_coverView setEditable:NO];
+    [_coverView setImage:_placeholderCover];
+    [c addSubview:_coverView];
+
+    // Right column geometry.
+    CGFloat rx = 14 + DT_COVER_SIDE + 14;     // 184
+    CGFloat rw = DT_PW_W - rx - 14;           // 254
+
+    // --- Title + artist on SEPARATE lines (tail-truncated, no middle chop) ---
+    _titleLabel = [self labelFrame:NSMakeRect(rx, 150, rw, 20) size:13.0 dim:NO];
+    [[_titleLabel cell] setLineBreakMode:NSLineBreakByTruncatingTail];
     [_titleLabel setStringValue:@"Nada tocando"];
     [c addSubview:_titleLabel];
 
-    _subLabel = [self labelFrame:NSMakeRect(16, 114, 308, 16) size:11.0 dim:YES];
+    _subLabel = [self labelFrame:NSMakeRect(rx, 130, rw, 16) size:11.0 dim:YES];
+    [[_subLabel cell] setLineBreakMode:NSLineBreakByTruncatingTail];
     [c addSubview:_subLabel];
 
-    _seekSlider = [[[NSSlider alloc] initWithFrame:NSMakeRect(16, 88, 308, 18)] autorelease];
+    // --- Seek + time ---
+    _seekSlider = [[[NSSlider alloc] initWithFrame:NSMakeRect(rx, 98, rw, 18)] autorelease];
     [_seekSlider setMinValue:0.0];
     [_seekSlider setMaxValue:1.0];
     [_seekSlider setDoubleValue:0.0];
@@ -120,30 +158,33 @@ static NSString *DTFormatMs(long long ms)
     [_seekSlider setAction:@selector(onSeek:)];
     [c addSubview:_seekSlider];
 
-    _elapsedLabel = [self labelFrame:NSMakeRect(16, 70, 120, 14) size:11.0 dim:YES];
+    _elapsedLabel = [self labelFrame:NSMakeRect(rx, 82, 110, 13) size:11.0 dim:YES];
     [_elapsedLabel setStringValue:@"–:–"];
     [c addSubview:_elapsedLabel];
 
-    _durationLabel = [self labelFrame:NSMakeRect(204, 70, 120, 14) size:11.0 dim:YES];
+    _durationLabel = [self labelFrame:NSMakeRect(rx + rw - 110, 82, 110, 13) size:11.0 dim:YES];
     [_durationLabel setAlignment:NSRightTextAlignment];
     [_durationLabel setStringValue:@"–:–"];
     [c addSubview:_durationLabel];
 
-    _prevButton = [self buttonFrame:NSMakeRect(118, 34, 34, 30)
+    // --- Transport, centered under the seek bar ---
+    CGFloat bcx = rx + rw / 2.0;              // right-column center
+    _prevButton = [self buttonFrame:NSMakeRect(bcx - 57, 46, 34, 30)
                               title:@"|◀" action:@selector(onPrev:)];
     [c addSubview:_prevButton];
-    _playButton = [self buttonFrame:NSMakeRect(154, 34, 34, 30)
+    _playButton = [self buttonFrame:NSMakeRect(bcx - 17, 46, 34, 30)
                               title:@"▶" action:@selector(onPlayPause:)];
     [c addSubview:_playButton];
-    _nextButton = [self buttonFrame:NSMakeRect(190, 34, 34, 30)
+    _nextButton = [self buttonFrame:NSMakeRect(bcx + 23, 46, 34, 30)
                               title:@"▶|" action:@selector(onNext:)];
     [c addSubview:_nextButton];
 
-    NSTextField *vol = [self labelFrame:NSMakeRect(16, 8, 28, 16) size:11.0 dim:YES];
+    // --- Volume + status row ---
+    NSTextField *vol = [self labelFrame:NSMakeRect(rx, 16, 26, 16) size:11.0 dim:YES];
     [vol setStringValue:@"vol"];
     [c addSubview:vol];
 
-    _volumeSlider = [[[NSSlider alloc] initWithFrame:NSMakeRect(46, 6, 128, 18)] autorelease];
+    _volumeSlider = [[[NSSlider alloc] initWithFrame:NSMakeRect(rx + 28, 14, 120, 18)] autorelease];
     [_volumeSlider setMinValue:0.0];
     [_volumeSlider setMaxValue:100.0];
     [_volumeSlider setDoubleValue:100.0];
@@ -152,8 +193,8 @@ static NSString *DTFormatMs(long long ms)
     [_volumeSlider setAction:@selector(onVolume:)];
     [c addSubview:_volumeSlider];
 
-    // Honest polling indicator: the API is polled ~2 s, so say so.
-    _pollLabel = [self labelFrame:NSMakeRect(180, 7, 144, 12) size:9.0 dim:YES];
+    // Honest polling / device indicator, bottom-right of the column.
+    _pollLabel = [self labelFrame:NSMakeRect(rx + rw - 130, 15, 130, 12) size:9.0 dim:YES];
     [_pollLabel setAlignment:NSRightTextAlignment];
     [_pollLabel setTextColor:[DTTheme textMuted]];
     [c addSubview:_pollLabel];
@@ -190,6 +231,12 @@ static NSString *DTFormatMs(long long ms)
 - (void)reconnect
 {
     [self stopSession];
+    // A different backend has its own ts timeline and its own cover for whatever
+    // is playing: forget the guard's high-water mark and the shown album.
+    [_api resetSnapshotGuard];
+    [_currentAlbumId release];
+    _currentAlbumId = nil;
+    [_coverView setImage:_placeholderCover];
     [self show];
 }
 
@@ -346,14 +393,11 @@ static NSString *DTFormatMs(long long ms)
     [_last release];
     _last = snap;
 
-    // Now-playing text.
+    // Now-playing text — title and artist on their own lines (the cover carries
+    // the album, so no album line and no middle-truncation of a joined string).
     if ([snap hasTrack]) {
-        NSString *t = snap.track;
-        if ([snap.artist length] > 0) {
-            t = [NSString stringWithFormat:@"%@ — %@", snap.track, snap.artist];
-        }
-        [_titleLabel setStringValue:t];
-        [_subLabel setStringValue:(snap.album ? snap.album : @"")];
+        [_titleLabel setStringValue:(snap.track ? snap.track : @"")];
+        [_subLabel setStringValue:(snap.artist ? snap.artist : @"")];
     } else {
         [_titleLabel setStringValue:@"Nada tocando"];
         [_subLabel setStringValue:@""];
@@ -362,6 +406,9 @@ static NSString *DTFormatMs(long long ms)
     // The now-playing line glows amber while playing.
     [_titleLabel setTextColor:(snap.state == DTPlaybackPlaying
                                ? [DTTheme accent] : [DTTheme textBright])];
+
+    // Album cover (fetched only when album_id changes; placeholder otherwise).
+    [self updateCoverForSnapshot:snap];
 
     // Play/pause glyph.
     [_playButton setTitle:(snap.state == DTPlaybackPlaying ? @"❙❙" : @"▶")];
@@ -387,6 +434,39 @@ static NSString *DTFormatMs(long long ms)
     if ([snap hasVolume] && !_scrubbing) {
         [_volumeSlider setDoubleValue:(double)snap.volume];
     }
+}
+
+- (void)updateCoverForSnapshot:(DTNowSnapshot *)snap
+{
+    NSString *albumId = [snap hasTrack] ? snap.albumId : nil;
+
+    // No art available (nothing loaded, or an item with no album): placeholder.
+    if ([albumId length] == 0) {
+        if (_currentAlbumId != nil) {
+            [_currentAlbumId release];
+            _currentAlbumId = nil;
+        }
+        [_coverView setImage:_placeholderCover];
+        return;
+    }
+
+    // Same album as what's shown: never refetch.
+    if ([albumId isEqualToString:_currentAlbumId]) {
+        return;
+    }
+    [_currentAlbumId release];
+    _currentAlbumId = [albumId copy];
+
+    [_coverCache coverForAlbum:albumId size:DT_COVER_SIZE handler:^(NSData *jpeg) {
+        // Drop the result if the album changed again while this fetch was in
+        // flight (compare by value against the album now showing).
+        if (![albumId isEqualToString:_currentAlbumId]) {
+            return;
+        }
+        NSImage *img = ([jpeg length] > 0)
+            ? [[[NSImage alloc] initWithData:jpeg] autorelease] : nil;
+        [_coverView setImage:(img ? img : _placeholderCover)];
+    }];
 }
 
 #pragma mark - Transport (buttons + media keys)
@@ -476,6 +556,9 @@ static NSString *DTFormatMs(long long ms)
     [_elapsedLabel setStringValue:@"–:–"];
     [_durationLabel setStringValue:@"–:–"];
     [_playButton setTitle:@"▶"];
+    [_currentAlbumId release];
+    _currentAlbumId = nil;
+    [_coverView setImage:_placeholderCover];
 }
 
 @end

@@ -19,6 +19,7 @@
 
 @class DTSpotAPI;
 @class DTNowSnapshot;
+@class DTCoverCache;
 
 @interface DTPlayerWindowController : NSObject
     <NSWindowDelegate, DTAudioStreamerDelegate, GopherRequestDelegate> {
@@ -34,11 +35,16 @@
     BOOL             _scrubbing;     // user is dragging the seek bar
     BOOL             _resolving;
 
+    NSImageView     *_coverView;     // album cover (300), the one colored area
+    DTCoverCache    *_coverCache;    // two-level cover cache
+    NSString        *_currentAlbumId;// album currently shown (nil = placeholder)
+    NSImage         *_placeholderCover; // amber CRT gopher when no art/no music
+
     NSTextField     *_titleLabel;
-    NSTextField     *_subLabel;
+    NSTextField     *_subLabel;      // artist (its own line)
     NSTextField     *_elapsedLabel;
     NSTextField     *_durationLabel;
-    NSTextField     *_pollLabel;     // honest "(polling…)" indicator
+    NSTextField     *_pollLabel;     // honest "(polling…)" / device indicator
     NSSlider        *_seekSlider;
     NSSlider        *_volumeSlider;
     NSButton        *_prevButton;

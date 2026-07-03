@@ -86,7 +86,10 @@ Two layers, cleanly separated:
 | `GopherTableView` | Table subclass: Return/Enter activates a row. |
 | `DTFontManager` | Registers bundled Cascadia Code; vends the document font. |
 | `BookmarkStore` | Bookmarks as a hand-editable gophermap. |
-| `PreferencesController` | Shows the resolved document font (diagnoses misalignment). |
+| `PreferencesController` | Server host/port (fio 8) + resolved document font. |
+| `DTServerPrefs` | Pure model: host/port validation, defaults, persistence (fio 8). |
+| `DTMediaKeyRouter` | Pure decode/policy for the media keys (fio 8). |
+| `DTMediaKeyTap` | Session `CGEventTap` capturing media keys on its own thread (fio 8). |
 | `DTInputSheet` | One-field input sheet (search / Open Location). |
 
 ## Design decisions
@@ -209,6 +212,29 @@ preference (`NSUserDefaults` keys `DTSpotHost` / `DTSpotPort` /
 Radinho** (Cmd-R) reveals or reconnects it. Gopher browsing is still one click
 away — **Go ▸ Home** (Cmd-Shift-H), **Open Location…** (Cmd-L), or a `gopher://…`
 launch argument — it's just no longer the front door.
+
+### Preferences + media keys (fio 8)
+
+**Preferences** (Cmd-,) grew a **gopher-spot Server** section: **Host** and
+**Port** fields backed by the same `DTSpotHost` / `DTSpotPort` defaults (so a
+legacy `defaults write dev.debene.detoca DTSpotHost …` still works, and the
+window reads/writes the very same values). Save is disabled until the host is
+non-empty and the port is 1–65535. **Test Connection** fetches the gopher root
+menu of the entered address over the normal socket path (not the `/spot/api/1`
+machine API) and reports latency or a readable error, without blocking the UI.
+Saving a *changed* address reconnects the radinho — the same path as Cmd-R.
+Validation and the host/port model live in the pure, unit-tested `DTServerPrefs`.
+
+The MacBook keyboard's **media keys** (⏮ ⏯ ⏭) drive the radinho, firing the
+exact same actions as the panel buttons and the Playback menu. ⏯ toggles
+play/pause when live, or revives + starts the radinho when idle (Cmd-R + play);
+⏭ / ⏮ are silent no-ops when nothing is connected. Capture is a
+`kCGSessionEventTap` for `NX_SYSDEFINED` (subtype-8 aux buttons) on a dedicated
+run-loop thread (`DTMediaKeyTap`), so it survives modal sheets and works even
+when DeToca isn't frontmost; the event is *consumed* so iTunes doesn't launch on
+⏯. On 10.6 this needs no "assistive devices" toggle. Decode + policy are the
+pure, unit-tested `DTMediaKeyRouter`. While DeToca runs it owns these keys
+globally (no most-recent-media-app arbitration — a deliberate simplification).
 
 ## Bookmarks
 

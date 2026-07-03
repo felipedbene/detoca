@@ -9,16 +9,18 @@
 //
 
 #import <Cocoa/Cocoa.h>
+#import "DTMediaKeyTap.h"
 
 @class GopherResource;
 @class GopherItem;
 @class GopherWindowController;
 @class PreferencesController;
 
-@interface AppDelegate : NSObject <NSApplicationDelegate> {
+@interface AppDelegate : NSObject <NSApplicationDelegate, DTMediaKeyTapDelegate> {
     NSMutableArray        *_controllers;   // open GopherWindowControllers
     PreferencesController *_prefs;
     NSString              *_initialURLString;  // optional launch location
+    DTMediaKeyTap         *_mediaKeys;     // global media-key capture (fio 8)
 }
 
 // If set before launch finishes, this location opens instead of Home. Set from
@@ -43,5 +45,13 @@
 - (void)showBookmarks:(id)sender;
 - (void)addBookmark:(id)sender;       // Cmd-D
 - (void)showPreferences:(id)sender;   // Cmd-,
+
+// Open/reveal the radinho, connecting to the current gopher-spot backend if
+// needed (the Playback ▸ Open Radinho action, Cmd-R).
+- (void)openRadinho:(id)sender;
+
+// Tear down any live radinho session and reconnect to the current backend.
+// Called by Preferences when the host/port changed.
+- (void)reconnectRadinho;
 
 @end

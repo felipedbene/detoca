@@ -50,7 +50,9 @@ MODEL_SRC = \
 	src/PlayQueueItem.m \
 	src/PlayQueue.m \
 	src/PLSParser.m \
-	src/SpotSelectors.m
+	src/SpotSelectors.m \
+	src/DTServerPrefs.m \
+	src/DTMediaKeyRouter.m
 
 # Audio (Foundation + AudioToolbox; no AppKit). fio-5 live streaming.
 AUDIO_SRC = \
@@ -64,6 +66,7 @@ UI_SRC = \
 	src/DTInputSheet.m \
 	src/GopherTableView.m \
 	src/GopherMenuView.m \
+	src/DTMediaKeyTap.m \
 	src/PreferencesController.m \
 	src/StreamPlayerController.m \
 	src/GopherSpotControl.m \
@@ -75,7 +78,8 @@ APP_SRC  = $(PARSER_SRC) $(NET_SRC) $(MODEL_SRC) $(AUDIO_SRC) $(UI_SRC)
 APP_LIBS = -framework Cocoa -framework ApplicationServices -framework QTKit \
            -framework AudioToolbox
 
-TEST_SRC = $(PARSER_SRC) $(MODEL_SRC) tests/ParserTests.m tests/PlayerTests.m
+TEST_SRC = $(PARSER_SRC) $(MODEL_SRC) tests/ParserTests.m tests/PlayerTests.m \
+           tests/PrefsTests.m
 
 # --- Default target ----------------------------------------------------------
 

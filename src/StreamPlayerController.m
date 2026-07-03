@@ -703,14 +703,19 @@ static StreamPlayerController *sSharedPlayer = nil;
 
 #pragma mark - NSWindowDelegate
 
-- (void)windowWillClose:(NSNotification *)note
+- (void)stopStreamSession
 {
-    // Closing the panel stops playback entirely.
     [self teardownMovie];
-    [self teardownStream];
+    [self teardownStream];   // fires streamControlWillStop so polling stops
     [_queue release];
     _queue = nil;
     _mode = DTPlayerModeIdle;
+}
+
+- (void)windowWillClose:(NSNotification *)note
+{
+    // Closing the panel stops playback entirely.
+    [self stopStreamSession];
     [self showTitle:@"Radinho — nothing playing"];
     [_positionLabel setStringValue:@""];
     [_timeLabel setStringValue:@"0:00"];

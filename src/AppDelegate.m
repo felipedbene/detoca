@@ -15,17 +15,16 @@
 #import "StreamPlayerController.h"
 #import "PlayQueueItem.h"
 #import "GopherSpotControl.h"
+#import "DTServerPrefs.h"
+#import "DTMediaKeyRouter.h"
 
 #define DT_HOME_HOST @"gopher.debene.dev"
 #define DT_HOME_PORT 70
 
 // The radinho is the star: DeToca opens straight to the gopher-spot player.
-// The address is a preference (NSUserDefaults) defaulting to the debene homelab.
-#define DT_SPOT_HOST     @"10.0.100.112"
-#define DT_SPOT_PORT     70
+// Host/port live in DTServerPrefs (keys DTSpotHost/DTSpotPort); only the stream
+// selector is kept here.
 #define DT_SPOT_STREAM   @"/spot/stream.pls"
-#define DT_SPOT_HOST_KEY   @"DTSpotHost"
-#define DT_SPOT_PORT_KEY   @"DTSpotPort"
 #define DT_SPOT_STREAM_KEY @"DTSpotStreamSelector"
 
 @interface AppDelegate ()
@@ -39,7 +38,7 @@
 - (void)openURLExternally:(NSString *)urlString;
 - (void)playStreamsFromWindow:(NSWindow *)window startingAtItem:(GopherItem *)item;
 - (void)exportPlaylist:(id)sender;
-- (void)openRadinho:(id)sender;
+- (void)connectRadinho;
 @end
 
 @implementation AppDelegate
@@ -60,6 +59,7 @@
     [_controllers release];
     [_prefs release];
     [_initialURLString release];
+    [_mediaKeys release];
     [super dealloc];
 }
 
@@ -74,6 +74,14 @@
 
 - (void)applicationDidFinishLaunching:(NSNotification *)note
 {
+    // Capture the keyboard's media keys globally so ⏮ ⏯ ⏭ drive the radinho
+    // (and iTunes doesn't hijack ⏯). Silently degrades if the OS denies the tap.
+    _mediaKeys = [[DTMediaKeyTap alloc] initWithDelegate:self];
+    if (![_mediaKeys start]) {
+        [_mediaKeys release];
+        _mediaKeys = nil;
+    }
+
     // A gopher:// launch argument opens that location (for gopher browsing);
     // otherwise the radinho is the star — open straight to it.
     if ([_initialURLString length] > 0) {
@@ -84,6 +92,12 @@
         }
     }
     [self openRadinho:self];
+}
+
+- (void)applicationWillTerminate:(NSNotification *)note
+{
+    // Release the media keys back to the system (so iTunes/others regain them).
+    [_mediaKeys stop];
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)app
@@ -256,15 +270,27 @@
         [player showPanel];
         return;
     }
+    [self connectRadinho];
+}
 
-    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-    NSString *host = [d objectForKey:DT_SPOT_HOST_KEY];
-    if ([host length] == 0) {
-        host = DT_SPOT_HOST;
-    }
-    NSInteger port = ([d objectForKey:DT_SPOT_PORT_KEY] != nil)
-        ? [d integerForKey:DT_SPOT_PORT_KEY] : DT_SPOT_PORT;
-    NSString *selector = [d objectForKey:DT_SPOT_STREAM_KEY];
+- (void)reconnectRadinho
+{
+    // Drop the live session (stops the old control plane's polling) and connect
+    // fresh to the current backend — used after a Preferences host/port change.
+    [[StreamPlayerController sharedController] stopStreamSession];
+    [self connectRadinho];
+}
+
+// Connect the radinho to the backend in DTServerPrefs. Shared by openRadinho:
+// (first connect) and reconnectRadinho (after a Preferences change).
+- (void)connectRadinho
+{
+    StreamPlayerController *player = [StreamPlayerController sharedController];
+
+    NSString *host = [DTServerPrefs host];
+    NSInteger port = [DTServerPrefs port];
+    NSString *selector = [[NSUserDefaults standardUserDefaults]
+                          objectForKey:DT_SPOT_STREAM_KEY];
     if ([selector length] == 0) {
         selector = DT_SPOT_STREAM;
     }
@@ -281,6 +307,41 @@
     GopherSpotControl *ctl = [[GopherSpotControl alloc] initWithSoundItem:item player:player];
     [ctl begin];
     [ctl release];
+}
+
+#pragma mark - DTMediaKeyTapDelegate
+
+- (void)mediaKeyTap:(DTMediaKeyTap *)tap
+        receivedKey:(DTMediaKeyKind)kind
+            pressed:(BOOL)pressed
+           isRepeat:(BOOL)isRepeat
+{
+    StreamPlayerController *player = [StreamPlayerController sharedController];
+    DTMediaKeyAction action =
+        [DTMediaKeyRouter actionForKind:kind
+                                pressed:pressed
+                               isRepeat:isRepeat
+                              connected:[player isStreamActive]];
+
+    // Route to the very same actions the panel buttons and Playback menu fire.
+    switch (action) {
+        case DTMediaKeyActionTogglePlayPause:
+            [player togglePlayPause:self];
+            break;
+        case DTMediaKeyActionNext:
+            [player playNext:self];
+            break;
+        case DTMediaKeyActionPrevious:
+            [player playPrevious:self];
+            break;
+        case DTMediaKeyActionReconnectAndPlay:
+            // Idle/closed radinho: revive it and start playing (Cmd-R + play).
+            [self openRadinho:self];
+            break;
+        case DTMediaKeyActionNone:
+        default:
+            break;
+    }
 }
 
 - (void)openHome:(id)sender

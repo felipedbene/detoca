@@ -123,7 +123,51 @@ Verified on the 10.6.8 target: the radinho expands into the gopher-spot browser,
 renders the root menu in the dark theme, and shows the polled now-playing title.
 `make test` = 50 tests green (adds the SpotSelectors suite).
 
-## Verified on hardware (this fio)
+### Preferences + media keys (fio 8)
+
+Preferences (mostly driven over SSH via UI scripting + `screencapture`):
+
+- [ ] **Server section renders** — Cmd-, shows a "gopher-spot Server" section
+      with Host + Port fields prefilled from the current backend, Test Connection
+      + Save buttons, above the Document Font section.
+- [ ] **Validation gates Save** — clear the host or type a port outside 1–65535:
+      Save (and Test) disable; a valid host/port re-enables them.
+- [ ] **Test Connection — success** — with a live address, the status shows
+      "Connected · N ms · M bytes"; the UI never freezes while it runs.
+- [ ] **Test Connection — error** — a closed port / bad host shows "Failed: …".
+- [ ] **Legacy defaults respected** — `defaults write dev.debene.detoca DTSpotHost
+      …` then Cmd-,: the window shows that value.
+- [ ] **Save reconnects** — change the host/port and Save: the radinho tears down
+      and reconnects to the new backend (same as Cmd-R).
+
+Media keys — **hardware validation (Felipe, at the MacBook2,1):**
+
+- [ ] **⏯ toggles** — with the radinho live, the play/pause key pauses/resumes
+      (and the transport mirrors upstream).
+- [ ] **⏭ / ⏮ skip** — next/previous keys skip tracks (same as the panel buttons).
+- [ ] **⏯ revives** — with the radinho closed/idle, ⏯ reconnects + starts playing.
+      ⏭ / ⏮ while idle do nothing (silent).
+- [ ] **iTunes stays shut** — pressing ⏯ with DeToca running does **not** launch
+      iTunes (the event is consumed).
+- [ ] **Keys return on quit** — after quitting DeToca, the media keys control
+      iTunes/the system again.
+- [ ] Note which F-keys map to prev/play/next and whether `fn` is needed on this
+      hardware (record in the fio-8 report).
+
+Verified over SSH on the 10.6.8 target (agent-permitting):
+
+- `make` builds `DeToca.app` clean under `-Wall` — **zero warnings**.
+- `make test` — **66 OCUnit tests green** (adds 16: DTServerPrefs validation +
+  defaults/persistence, DTMediaKeyRouter decode + policy).
+- Fresh launch logs `[mediakeys] event tap installed (session tap,
+  NX_SYSDEFINED)` — the session tap is granted on 10.6.8 **without** the
+  "assistive devices" toggle; app launches and quits cleanly.
+- Preferences window renders correctly (screenshot): Server section with the real
+  host/port, Test/Save buttons, divider, Document Font section — no clipping.
+- gopher-spot root (`10.0.100.112:70`) is reachable over the app's socket path
+  (`spikeb`), the substrate Test Connection uses.
+
+## Verified on hardware (fio 1)
 
 Built and run on the actual target (Mac OS X 10.6.8, MacBook2,1, i386,
 Xcode 3.2.6), driven over SSH with `screencapture`:

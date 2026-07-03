@@ -95,6 +95,11 @@
 - (void)showPanel;
 - (BOOL)hasQueue;
 
+// Tear down any active playback (queue or stream) and return to idle, stopping
+// the stream control plane's polling. Used when reconnecting to a different
+// gopher-spot backend after a Preferences change. Leaves the panel on screen.
+- (void)stopStreamSession;
+
 // Controls (wired to both the panel buttons and the Playback menu).
 - (void)togglePlayPause:(id)sender;
 - (void)playNext:(id)sender;

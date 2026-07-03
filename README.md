@@ -175,6 +175,17 @@ the ordinary menu path. Hand-editable — it's just a gophermap.
 `-openExternalURLString:`); universal ppc/i386 10.5 build (fio 3); images,
 binary downloads, Gopher+, caching, TLS, tabs.
 
+## Icon (fio 4)
+
+`Resources/DeToca.icns` — a dark rounded tile with an amber CRT "scope" showing a
+pixel-art gopher wearing headphones (browser + radinho in one glyph). Chosen from
+two candidates in `design/` for legibility at Dock/Finder sizes; the amber
+line-art reads more clearly when shrunk than the green matrix alternative
+(`design/icon-green-matrix.png`). The tile was cropped from the source render and
+its corners masked to transparency (`design/icon-amber-gopher-tile.png`), then
+built into a multi-size `.icns` and referenced via `CFBundleIconFile`. To rebuild
+from a different source, regenerate the `.iconset` and run `iconutil -c icns`.
+
 ## Font license
 
 Cascadia Code is bundled under the SIL Open Font License 1.1

@@ -6,6 +6,8 @@
 	<string>English</string>
 	<key>CFBundleExecutable</key>
 	<string>DeToca</string>
+	<key>CFBundleIconFile</key>
+	<string>DeToca</string>
 	<key>CFBundleIdentifier</key>
 	<string>dev.debene.detoca</string>
 	<key>CFBundleInfoDictionaryVersion</key>

@@ -26,6 +26,7 @@ APP        = DeToca.app
 APP_BINARY = $(APP)/Contents/MacOS/DeToca
 FONT       = Resources/CascadiaCode-Regular.ttf
 LICENSE    = Resources/OFL.txt
+ICON       = Resources/DeToca.icns
 
 # --- Source groups -----------------------------------------------------------
 
@@ -73,7 +74,7 @@ all: $(APP)
 
 # --- Application bundle -------------------------------------------------------
 
-$(APP): $(APP_SRC) Info.plist $(FONT)
+$(APP): $(APP_SRC) Info.plist $(FONT) $(ICON)
 	@echo "  Assembling $(APP)"
 	@mkdir -p $(APP)/Contents/MacOS
 	@mkdir -p $(APP)/Contents/Resources
@@ -81,6 +82,7 @@ $(APP): $(APP_SRC) Info.plist $(FONT)
 	@cp Info.plist $(APP)/Contents/Info.plist
 	@printf 'APPLToca' > $(APP)/Contents/PkgInfo
 	@cp $(FONT) $(APP)/Contents/Resources/
+	@cp $(ICON) $(APP)/Contents/Resources/
 	@if [ -f $(LICENSE) ]; then cp $(LICENSE) $(APP)/Contents/Resources/; fi
 	@echo "  Built $(APP)"
 

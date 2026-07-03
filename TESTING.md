@@ -81,8 +81,29 @@ Driven on the 10.6.8 target with a local HTTP server and the real
 `StreamPlayerController`: the dark HUD radinho renders; a track plays with a
 live elapsed clock; a 3-track queue auto-advances (each track plays fully to
 `QTMovieDidEndNotification`, position updates 1/3 → 2/3 → 3/3); a stream that
-fails to load moves the queue forward without any alert. `make test` includes
-the PlayQueue/StreamRouting suites (42 tests total, green).
+fails to load moves the queue forward without any alert.
+
+### Live streams + gopher-spot (fio 5)
+
+- [ ] **Type-`s` click-to-play** — a sound item (gopher-spot "Reabrir stream")
+      resolves its `.pls` over gopher and plays the live Icecast stream in the
+      radinho ("live · gopher-spot").
+- [ ] **Now Playing** — the panel title reflects `/spot/now` and updates as the
+      track changes.
+- [ ] **Transport → control plane** — Next/Prev/Play/Pause in the radinho drive
+      gopher `/spot/control/*` (Spotify skips/pauses upstream).
+- [ ] **Survives its window** — closing the browser window keeps the stream
+      playing; closing the panel stops it.
+- [ ] **QTKit vs live** — a finite MP3 still uses the QTKit queue; only live
+      streams use CoreAudio.
+
+Verified on the 10.6.8 target against real gopher-spot
+(`gopher://10.0.100.112:70`, Icecast at `10.0.100.113:8000`): `DTAudioStreamer`
+reaches sustained playback of the live stream (CoreAudio, where QTKit errored);
+the radinho plays in stream mode with a live clock; the `Next` button fired
+`/spot/control/next` and the now-playing title changed ("Dilemma" → "Rich
+Girl"); 0 leaks under `MallocStackLogging`. `make test` = 47 tests green
+(adds the PLSParser suite).
 
 ## Verified on hardware (this fio)
 

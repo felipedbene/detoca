@@ -9,6 +9,7 @@
 #import "StreamRouting.h"
 #import "PlayQueue.h"
 #import "PlayQueueItem.h"
+#import "PLSParser.h"
 
 @interface PlayerTests : SenTestCase
 @end
@@ -138,6 +139,46 @@ static NSArray *ThreeItems(void)
     STAssertEquals((int)[q currentIndex], -1, @"index -1 when empty");
     STAssertNil([q currentItem], @"no current item");
     STAssertEqualObjects([q positionString], @"", @"empty position string");
+}
+
+#pragma mark - PLSParser
+
+- (void)testPLSStandard
+{
+    // The real gopher-spot /spot/stream.pls.
+    NSString *pls = @"[playlist]\nNumberOfEntries=1\n"
+                    @"File1=http://10.0.100.113:8000/spotify.mp3\n"
+                    @"Title1=gopher-spot\nLength1=-1\nVersion=2\n";
+    STAssertEqualObjects([PLSParser firstURLFromPlaylistText:pls],
+                         @"http://10.0.100.113:8000/spotify.mp3", @"PLS File1");
+}
+
+- (void)testPLSPrefersLowestIndex
+{
+    NSString *pls = @"[playlist]\nFile2=http://h/b.mp3\nFile1=http://h/a.mp3\n";
+    STAssertEqualObjects([PLSParser firstURLFromPlaylistText:pls],
+                         @"http://h/a.mp3", @"lowest File index wins");
+}
+
+- (void)testM3UExtended
+{
+    NSString *m3u = @"#EXTM3U\n#EXTINF:-1,gopher-spot\nhttp://h/stream.mp3\n";
+    STAssertEqualObjects([PLSParser firstURLFromPlaylistText:m3u],
+                         @"http://h/stream.mp3", @"M3U bare URL");
+}
+
+- (void)testM3UPlain
+{
+    NSString *m3u = @"http://h/one.mp3\nhttp://h/two.mp3\n";
+    STAssertEqualObjects([PLSParser firstURLFromPlaylistText:m3u],
+                         @"http://h/one.mp3", @"first plain URL");
+}
+
+- (void)testPlaylistNoURL
+{
+    STAssertNil([PLSParser firstURLFromPlaylistText:@"[playlist]\nNumberOfEntries=0\n"],
+                @"no URL → nil");
+    STAssertNil([PLSParser firstURLFromPlaylistText:nil], @"nil → nil");
 }
 
 @end

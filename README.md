@@ -69,7 +69,10 @@ Two layers, cleanly separated:
 |-------|----------------|
 | `StreamRouting` | Classifies a URL string as an in-app MP3 stream (pure Foundation, unit-tested). |
 | `PlayQueueItem` / `PlayQueue` | Gopher-agnostic queue model: ordered (title, URL) items with a current index and next/prev/replace (pure Foundation, unit-tested). |
-| `StreamPlayerController` | Singleton dark HUD `NSPanel` playing a `PlayQueue` with QTKit; auto-advance, dead-stream skip, persisted volume. Never imports the parser. |
+| `PLSParser` | Extracts the first stream URL from a PLS/M3U playlist (pure Foundation, unit-tested). |
+| `StreamPlayerController` | Singleton dark HUD `NSPanel`. Two modes: QTKit finite-file queue (fio 2) and a live-stream mode (fio 5). Never imports the parser or gopher. |
+| `DTAudioStreamer` | Live MP3 streaming via `AudioFileStream` + `AudioQueue` on a dedicated thread — what QTKit cannot do. Foundation + AudioToolbox, no AppKit. |
+| `GopherSpotControl` | The gopher side of gopher-spot: resolves the `.pls`, is the player's `StreamControlDelegate` (transport → `/spot/control/*`), and polls `/spot/now`. |
 
 **AppKit UI:**
 
@@ -159,6 +162,26 @@ closed or the app quits. A dead stream is skipped forward without an alert storm
 - **File ▸ Export Menu as Playlist…** writes the frontmost menu's stream items as
   Extended M3U (`#EXTM3U` / `#EXTINF:-1,<title>`) for use in an external player.
 - Volume persists across relaunches (`NSUserDefaults`).
+
+### Live streams + gopher-spot control plane (fio 5)
+
+QTKit only plays *finite* HTTP files; it cannot play an endless live Icecast
+stream (verified: `QTMovie` load state goes straight to error). So a type-`s`
+(sound) item — gopher-spot's "Reabrir stream" → a `.pls` — is played by
+**`DTAudioStreamer`**, a CoreAudio (`AudioFileStream` + `AudioQueue`) streamer.
+AudioToolbox is on 10.5, so this stays fio-3 friendly.
+
+gopher-spot is dual-plane: one persistent Icecast audio stream plus a gopher
+**control plane**. Activating a type-`s` item resolves the `.pls` over gopher,
+plays the stream, and wires the panel to the control plane via
+`GopherSpotControl` (derived by convention from the stream selector's parent —
+`/spot/stream.pls` → `/spot/control/{play,pause,next,prev}`, `/spot/now`):
+
+- The radinho's transport buttons fire gopher `/spot/control/*` requests (so
+  Next skips the upstream Spotify), and the now-playing title is polled from
+  `/spot/now`. The player itself stays gopher-agnostic — all gopher knowledge
+  lives in `GopherSpotControl`, which is just the player's `StreamControlDelegate`.
+- Playback survives closing the browser window; closing the panel stops it.
 
 ## Bookmarks
 

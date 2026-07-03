@@ -6,12 +6,19 @@
 #import "StreamPlayerController.h"
 #import "PlayQueue.h"
 #import "PlayQueueItem.h"
+#import "DTAudioStreamer.h"
 #import <QTKit/QTKit.h>
 
 #define DT_PLAYER_VOLUME_KEY @"DTPlayerVolume"
 #define DT_DEFAULT_VOLUME 0.75f
 
-@interface StreamPlayerController ()
+enum {
+    DTPlayerModeIdle = 0,
+    DTPlayerModeQueue,    // QTKit finite-file queue (fio 2)
+    DTPlayerModeStream    // DTAudioStreamer live stream (fio 5)
+};
+
+@interface StreamPlayerController () <DTAudioStreamerDelegate>
 - (void)buildPanel;
 - (void)ensurePanel;
 - (NSTextField *)hudLabelWithFrame:(NSRect)frame size:(CGFloat)size dim:(BOOL)dim;
@@ -19,6 +26,7 @@
 - (void)loadAndPlayCurrent;
 - (void)checkLoadStateAndPlay;
 - (void)teardownMovie;
+- (void)teardownStream;
 - (void)handleLoadFailure;
 - (void)enterIdle;
 - (void)startTick;
@@ -26,6 +34,7 @@
 - (void)updatePlayButton;
 - (void)updateTrackLabels;
 - (void)updateTimeLabel;
+- (void)showTitle:(NSString *)title;
 - (void)loadStateChanged:(NSNotification *)note;
 - (void)movieDidEnd:(NSNotification *)note;
 @end
@@ -57,6 +66,7 @@ static StreamPlayerController *sSharedPlayer = nil;
 - (void)dealloc
 {
     [self teardownMovie];
+    [self teardownStream];
     [_queue release];
     [_panel release];
     [super dealloc];
@@ -167,12 +177,80 @@ static StreamPlayerController *sSharedPlayer = nil;
     if ([items count] == 0) {
         return;
     }
+    [self teardownStream];   // leaving stream mode, if any
+    _mode = DTPlayerModeQueue;
+
     [_queue release];
     _queue = [[PlayQueue alloc] initWithItems:items startIndex:index];
 
     [self ensurePanel];
     [self showPanel];
     [self loadAndPlayCurrent];
+}
+
+#pragma mark - Stream mode (fio 5)
+
+- (void)playStreamURL:(NSString *)urlString
+                title:(NSString *)title
+      controlDelegate:(id <StreamControlDelegate>)control
+{
+    if ([urlString length] == 0) {
+        return;
+    }
+    // Leave whatever mode we were in.
+    [self teardownMovie];
+    [self teardownStream];
+    _mode = DTPlayerModeStream;
+
+    _control = [control retain];
+
+    [self ensurePanel];
+    [self showPanel];
+
+    [self showTitle:([title length] > 0 ? title : @"Live stream")];
+    [_positionLabel setStringValue:(_control != nil ? @"live · gopher-spot" : @"live")];
+    [_timeLabel setStringValue:@"0:00"];
+
+    _streamer = [[DTAudioStreamer alloc] initWithURLString:urlString];
+    [_streamer setDelegate:self];
+    [_streamer setVolume:_volume];
+    _playing = NO;
+    [self updatePlayButton];
+    [_streamer start];
+}
+
+// Update the title label and force the HUD background under it to repaint —
+// the label is non-opaque (drawsBackground:NO), so a shorter new string would
+// otherwise leave the tail of the previous one visible.
+- (void)showTitle:(NSString *)title
+{
+    [_titleLabel setStringValue:(title ? title : @"")];
+    [[_panel contentView] setNeedsDisplayInRect:[_titleLabel frame]];
+}
+
+- (void)setNowPlayingTitle:(NSString *)title
+{
+    if (_mode == DTPlayerModeStream && [title length] > 0) {
+        [self showTitle:title];
+    }
+}
+
+- (void)teardownStream
+{
+    if (_control != nil) {
+        if ([_control respondsToSelector:@selector(streamControlWillStop)]) {
+            [_control streamControlWillStop];
+        }
+        [_control release];
+        _control = nil;
+    }
+    if (_streamer != nil) {
+        [_streamer setDelegate:nil];
+        [_streamer stop];
+        [_streamer release];
+        _streamer = nil;
+    }
+    [self stopTick];
 }
 
 - (void)playSingleURL:(NSString *)urlString title:(NSString *)title
@@ -283,8 +361,7 @@ static StreamPlayerController *sSharedPlayer = nil;
 
     PlayQueueItem *next = [_queue advanceToNext];
     if (next != nil) {
-        [_titleLabel setStringValue:
-            [NSString stringWithFormat:@"⚠ Skipped “%@” — trying next…", failed]];
+        [self showTitle:[NSString stringWithFormat:@"⚠ Skipped “%@” — trying next…", failed]];
         [self updatePlayButton];
         [self performSelector:@selector(loadAndPlayCurrent) withObject:nil afterDelay:0.7];
     } else {
@@ -294,8 +371,7 @@ static StreamPlayerController *sSharedPlayer = nil;
         _playing = NO;
         [self updatePlayButton];
         [_positionLabel setStringValue:[_queue positionString]];
-        [_titleLabel setStringValue:
-            [NSString stringWithFormat:@"⚠ Could not play “%@”", failed]];
+        [self showTitle:[NSString stringWithFormat:@"⚠ Could not play “%@”", failed]];
     }
 }
 
@@ -311,6 +387,22 @@ static StreamPlayerController *sSharedPlayer = nil;
 
 - (void)togglePlayPause:(id)sender
 {
+    if (_mode == DTPlayerModeStream) {
+        // Toggle local audio, and mirror the command to the control plane so
+        // the upstream (Spotify) pauses/resumes too.
+        BOOL wasPlaying = _playing;
+        [_streamer setPaused:wasPlaying];
+        _playing = !wasPlaying;
+        if (_playing) { [self startTick]; } else { [self stopTick]; }
+        [self updatePlayButton];
+        if (_control != nil) {
+            if (_playing) { [_control streamControlPlay]; }
+            else          { [_control streamControlPause]; }
+        }
+        return;
+    }
+
+    // Queue mode.
     if (_movie == nil) {
         // Idle after a finished/failed queue: (re)start the current item.
         if ([_queue currentItem] != nil) {
@@ -332,6 +424,13 @@ static StreamPlayerController *sSharedPlayer = nil;
 
 - (void)playNext:(id)sender
 {
+    if (_mode == DTPlayerModeStream) {
+        // The stream URL is constant; "next" is a control-plane command.
+        if (_control != nil) {
+            [_control streamControlNext];
+        }
+        return;
+    }
     PlayQueueItem *next = [_queue advanceToNext];
     if (next != nil) {
         [self loadAndPlayCurrent];
@@ -342,6 +441,12 @@ static StreamPlayerController *sSharedPlayer = nil;
 
 - (void)playPrevious:(id)sender
 {
+    if (_mode == DTPlayerModeStream) {
+        if (_control != nil) {
+            [_control streamControlPrevious];
+        }
+        return;
+    }
     PlayQueueItem *prev = [_queue goToPrevious];
     if (prev != nil) {
         [self loadAndPlayCurrent];
@@ -353,6 +458,9 @@ static StreamPlayerController *sSharedPlayer = nil;
     _volume = [_volumeSlider floatValue];
     if (_movie != nil) {
         [_movie setVolume:_volume];
+    }
+    if (_streamer != nil) {
+        [_streamer setVolume:_volume];
     }
     [[NSUserDefaults standardUserDefaults] setFloat:_volume forKey:DT_PLAYER_VOLUME_KEY];
     [[NSUserDefaults standardUserDefaults] synchronize];
@@ -370,6 +478,40 @@ static StreamPlayerController *sSharedPlayer = nil;
     [self playNext:self];
 }
 
+#pragma mark - DTAudioStreamerDelegate (main thread)
+
+- (void)audioStreamerDidStartPlaying:(DTAudioStreamer *)streamer
+{
+    if (streamer != _streamer) {
+        return;
+    }
+    _playing = YES;
+    [self updatePlayButton];
+    [self startTick];
+}
+
+- (void)audioStreamer:(DTAudioStreamer *)streamer didFailWithMessage:(NSString *)message
+{
+    if (streamer != _streamer) {
+        return;
+    }
+    [self stopTick];
+    _playing = NO;
+    [self updatePlayButton];
+    [self showTitle:
+        [NSString stringWithFormat:@"⚠ Stream error: %@", (message ? message : @"unknown")]];
+}
+
+- (void)audioStreamerDidFinish:(DTAudioStreamer *)streamer
+{
+    if (streamer != _streamer) {
+        return;
+    }
+    [self stopTick];
+    _playing = NO;
+    [self updatePlayButton];
+}
+
 #pragma mark - UI updates
 
 - (void)updatePlayButton
@@ -381,9 +523,9 @@ static StreamPlayerController *sSharedPlayer = nil;
 {
     PlayQueueItem *item = [_queue currentItem];
     if (item != nil) {
-        [_titleLabel setStringValue:[item title]];
+        [self showTitle:[item title]];
     } else {
-        [_titleLabel setStringValue:@"Radinho — nothing playing"];
+        [self showTitle:@"Radinho — nothing playing"];
     }
     [_positionLabel setStringValue:[_queue positionString]];
 }
@@ -409,12 +551,16 @@ static StreamPlayerController *sSharedPlayer = nil;
 
 - (void)updateTimeLabel
 {
-    if (_movie == nil) {
-        return;
+    NSTimeInterval secs = -1.0;
+    if (_mode == DTPlayerModeStream && _streamer != nil) {
+        secs = [_streamer elapsed];
+    } else if (_movie != nil) {
+        QTTime t = [_movie currentTime];
+        if (!QTGetTimeInterval(t, &secs)) {
+            secs = -1.0;
+        }
     }
-    QTTime t = [_movie currentTime];
-    NSTimeInterval secs = 0.0;
-    if (QTGetTimeInterval(t, &secs) && secs >= 0.0) {
+    if (secs >= 0.0) {
         long total = (long)secs;
         [_timeLabel setStringValue:
             [NSString stringWithFormat:@"%ld:%02ld", total / 60, total % 60]];
@@ -427,9 +573,13 @@ static StreamPlayerController *sSharedPlayer = nil;
 {
     // Closing the panel stops playback entirely.
     [self teardownMovie];
+    [self teardownStream];
     [_queue release];
     _queue = nil;
-    [self updateTrackLabels];
+    _mode = DTPlayerModeIdle;
+    [self showTitle:@"Radinho — nothing playing"];
+    [_positionLabel setStringValue:@""];
+    [_timeLabel setStringValue:@"0:00"];
 }
 
 @end

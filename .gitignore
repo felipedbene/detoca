@@ -6,3 +6,6 @@ spikeb
 
 # macOS cruft
 .DS_Store
+
+# Working notes (not part of the deliverable)
+NIGHTLOG.md

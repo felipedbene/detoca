@@ -44,6 +44,7 @@
         case '7': return GopherItemKindSearch;
         case 'i': return GopherItemKindInfo;
         case 'h': return GopherItemKindHTML;
+        case 's': return GopherItemKindSound;
         case '3': return GopherItemKindError;
         default:  return GopherItemKindUnknown;
     }
@@ -55,6 +56,7 @@
         case GopherItemKindText:
         case GopherItemKindMenu:
         case GopherItemKindSearch:
+        case GopherItemKindSound:
             return YES;
         case GopherItemKindHTML:
             // Only clickable if we can extract a usable URL.

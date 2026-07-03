@@ -14,6 +14,7 @@
 #import "StreamRouting.h"
 #import "StreamPlayerController.h"
 #import "PlayQueueItem.h"
+#import "GopherSpotControl.h"
 
 #define DT_HOME_HOST @"gopher.debene.dev"
 #define DT_HOME_PORT 70
@@ -100,6 +101,18 @@
 - (void)openItem:(GopherItem *)item fromWindow:(NSWindow *)parent
 {
     GopherItemKind kind = [item kind];
+
+    if (kind == GopherItemKindSound) {
+        // gopher-spot stream: resolve the PLS over gopher and play in the
+        // radinho with the gopher control plane. GopherSpotControl manages its
+        // own lifetime (self-retains through the async resolve).
+        GopherSpotControl *ctl =
+            [[GopherSpotControl alloc] initWithSoundItem:item
+                                                  player:[StreamPlayerController sharedController]];
+        [ctl begin];
+        [ctl release];
+        return;
+    }
 
     if (kind == GopherItemKindHTML) {
         NSString *url = [item externalURLString];

@@ -18,6 +18,7 @@ typedef enum {
     GopherItemKindSearch,       // '7' full-text search server
     GopherItemKindInfo,         // 'i' informational line (non-clickable)
     GopherItemKindHTML,         // 'h' HTML / URL: link (opened externally)
+    GopherItemKindSound,        // 's' sound / audio stream (played in the radinho)
     GopherItemKindError,        // '3' error
     GopherItemKindUnknown       // anything else (dimmed, non-clickable)
 } GopherItemKind;

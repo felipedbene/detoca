@@ -347,6 +347,7 @@ static NSString *TagForKind(GopherItemKind kind)
         case GopherItemKindText:    return @"[TXT]";
         case GopherItemKindSearch:  return @"[FND]";
         case GopherItemKindHTML:    return @"[WWW]";
+        case GopherItemKindSound:   return @"[SND]";
         case GopherItemKindError:   return @"[ERR]";
         case GopherItemKindInfo:    return @"     ";
         case GopherItemKindUnknown:

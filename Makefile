@@ -48,9 +48,14 @@ NET_SRC = \
 MODEL_SRC = \
 	src/StreamRouting.m \
 	src/PlayQueueItem.m \
-	src/PlayQueue.m
+	src/PlayQueue.m \
+	src/PLSParser.m
 
-# AppKit UI (incl. the fio-2 QTKit player).
+# Audio (Foundation + AudioToolbox; no AppKit). fio-5 live streaming.
+AUDIO_SRC = \
+	src/DTAudioStreamer.m
+
+# AppKit UI (incl. the fio-2 QTKit player and fio-5 radinho v2).
 UI_SRC = \
 	src/DTFontManager.m \
 	src/AttributedStringRenderer.m \
@@ -59,12 +64,14 @@ UI_SRC = \
 	src/GopherTableView.m \
 	src/PreferencesController.m \
 	src/StreamPlayerController.m \
+	src/GopherSpotControl.m \
 	src/GopherWindowController.m \
 	src/AppDelegate.m \
 	src/main.m
 
-APP_SRC  = $(PARSER_SRC) $(NET_SRC) $(MODEL_SRC) $(UI_SRC)
-APP_LIBS = -framework Cocoa -framework ApplicationServices -framework QTKit
+APP_SRC  = $(PARSER_SRC) $(NET_SRC) $(MODEL_SRC) $(AUDIO_SRC) $(UI_SRC)
+APP_LIBS = -framework Cocoa -framework ApplicationServices -framework QTKit \
+           -framework AudioToolbox
 
 TEST_SRC = $(PARSER_SRC) $(MODEL_SRC) tests/ParserTests.m tests/PlayerTests.m
 

@@ -14,6 +14,12 @@ and newer clients require newer macOS. DeToca fills that gap: RFC 1436 browsing,
 multi-window navigation, and — the headline feature — correctly-aligned braille
 maps with 256-color ANSI (the gopher-cta live CTA 'L' train maps).
 
+> **Companion backend.** DeToca's "radinho" is the native client for
+> **[gopher-spot](https://github.com/felipedbene/gopher-spot)** — Spotify Connect
+> driven over Gopher, running on a homelab Kubernetes cluster. The player consumes
+> its frozen **[`/spot/api/1` machine API](https://github.com/felipedbene/gopher-spot/blob/main/API.md)**;
+> the client half is [fio 10](#the-full-radinho-fio-10).
+
 ## Building
 
 Everything is plain `.h`/`.m` plus a Makefile. **No Xcode project, no NIBs** —
@@ -90,10 +96,14 @@ Two layers, cleanly separated:
 | `DTServerPrefs` | Pure model: host/port validation, defaults, persistence (fio 8). |
 | `DTMediaKeyRouter` | Pure decode/policy for the media keys (fio 8). |
 | `DTMediaKeyTap` | Session `CGEventTap` capturing media keys on its own thread (fio 8). |
-| `DTNowSnapshot` | Pure model/parser for the `/spot/api/1/now` snapshot (fio 9). |
-| `DTSpotAPI` | Client of the `/spot/api/1` machine API — state + transport (fio 9). |
-| `DTPlayerWindowController` | WinAmp-style player window on the API (fio 9). |
-| `DTPlaylistWindowController` | Search → flat playable track list (fio 9). |
+| `DTNowSnapshot` | Pure model/parser for the `/spot/api/1/now` snapshot; grew `album_id` + `device active\|idle` (fio 9/10). |
+| `DTTrackItem` / `DTPlaylistItem` | Pure parsers for the v1 **list** responses — the shared `item.<i>.*` block (queue / search / playlist tracks) and the playlists list. Unit-tested (fio 10). |
+| `DTSnapshotGuard` | Pure monotonic-`ts` guard: drops a snapshot from a staler replica so the seek bar never rewinds. Unit-tested (fio 10). |
+| `DTCoverCache` | Two-level album-cover cache — `NSCache` + disk (`~/Library/Caches/dev.debene.detoca/covers/`), immutable, async, network fetch injected so it stays pure/testable (fio 10). |
+| `DTSpotAPI` | Client of the **whole** `/spot/api/1` surface — state/transport, queue (+ add), search, playlists, wake, cover bytes — with the ts guard on `/now` (fio 9/10). |
+| `DTPlayerWindowController` | The cover-forward player window on the API: big album cover, title/artist, seek/transport/volume, wake-on-idle (fio 9/10). |
+| `DTPlaylistWindowController` | Modes — **Busca** (search) / **Fila** (queue) / **Playlists** — all on the machine API (fio 9/10). |
+| `DTTrackCell` | Cell-based table row: 64px thumbnail + track/artist in DTTheme (10.6 has no view-based tables) (fio 10). |
 | `DTTheme` | The one dark/amber CRT skin (palette + factories) (fio 9). |
 | `DTInputSheet` | One-field input sheet (search / Open Location). |
 
@@ -266,11 +276,54 @@ transport.
   accent from the app icon), applied to the player, playlist and a repainted-dark
   Preferences; the fio-8 media keys drive the player's API transport.
 
-Real "up next" queue contents and cover art aren't in the v1 API (only
-`queue_len`) — they arrive with fio S2; the playlist shows search results until
-then. The gopher browse is demoted: a `[SND]` link opens the player, and gopher
+At fio 9 the real "up next" queue and cover art weren't in the v1 API yet (only
+`queue_len`), so the playlist showed search results — those land in **fio 10**
+(below). The gopher browse is demoted: a `[SND]` link opens the player, and gopher
 browsing stays available through ordinary gopher windows. `StreamPlayerController`
 (fio 2/5) remains only for the MP3-file queue of `h`/`URL:` links.
+
+### The full Radinho (fio 10)
+
+By fio 9 the server-side machine API had grown well past what the client used:
+gopher-spot's [fio S1–S3](https://github.com/felipedbene/gopher-spot) added the
+queue, album covers, track search, `device`/`wake`, and playlists. **fio 10**
+consumes all of it, finishing the Radinho as a real music client — still pure
+10.6 / Xcode 3.2.6, non-ARC, programmatic UI, zero server change. See the
+[machine-API contract](https://github.com/felipedbene/gopher-spot/blob/main/API.md).
+
+- **Data layer (`DTSpotAPI` + pure models).** `DTSpotAPI` now covers the whole
+  `/spot/api/1` surface — `queue`/`queue/add`, `search`, `playlists` (paged),
+  `wake`/`wake?play=1`, context play, and raw `cover` JPEG bytes (split from the
+  text-error body by the `FF D8` SOI marker). The v1 list responses parse through
+  the pure, unit-tested `DTTrackItem` / `DTPlaylistItem`. A **monotonic-`ts`
+  guard** (`DTSnapshotGuard`) drops a `/now` from a staler replica — the server
+  runs two pods, each with a ~1 s `/now` micro-cache behind a load balancer, so
+  consecutive polls can return a `ts` slightly out of order; the guard means the
+  seek bar never rewinds. `DTNowSnapshot` grew `album_id` and `device`.
+- **Cover-forward player.** The player is rebuilt around a **big album cover** on
+  the left (a fixed landscape window); title and artist sit on **separate lines**
+  (killing the old middle-truncation), and the cover is the one colored area in
+  the dark skin. The cover changes only when `album_id` changes and is cached in
+  memory + on disk (immutable), so a track change inside the same album never
+  refetches and a relaunch loads it from disk. No art → the amber CRT gopher
+  placeholder.
+- **Playlist window in modes** (`Busca | Fila | Playlists`, still Cmd-Y). **Busca**
+  now hits `/spot/api/1/search` — the *last* human-menu parse in the app is gone;
+  results render with 64px thumbnails and each row can **play (▶ Tocar)** or
+  **enqueue (＋ Fila → `queue/add`)**. **Fila** shows the live "up next" queue with
+  thumbnails, refreshed off the player's existing `/now` poll (no second timer) and
+  after an add; an empty queue shows the automatic-radio state. **Playlists** lists
+  all 155 (paged + session-cached) and plays one **as a context** (`context_uri`),
+  so next/prev follow the playlist order — there's no track drill-down because
+  Spotify 403s playlist reads for this app in dev-mode.
+- **Wake on idle.** When `/now` reports `device idle` (the audio device drifted to
+  the phone, or librespot dropped) the footer nudges "rádio dormindo — play pra
+  acordar"; pressing play (or a media key) calls `wake?play=1` to pull playback
+  back onto the gopher-spot device. `no_device` (librespot down) shows an honest
+  "rádio fora do ar", no crash.
+
+Thumbnails and covers come from `DTCoverCache`; rows draw through `DTTrackCell`.
+Everything off the main thread; 92 OCUnit tests green; zero leaks.
 
 ## Bookmarks
 

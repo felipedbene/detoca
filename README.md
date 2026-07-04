@@ -7,6 +7,7 @@ world. Bundle id: `dev.debene.detoca`.
 
 Toca = burrow. Same family as DeBurrow.
 
+[Companion Android App](https://github.com/felipedbene/deburrow)
 ## Why
 
 The 10.6 Gopher ecosystem is effectively empty — TurboGopher is Classic-only,

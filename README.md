@@ -20,6 +20,12 @@ maps with 256-color ANSI (the gopher-cta live CTA 'L' train maps).
 > driven over Gopher, running on a homelab Kubernetes cluster. The player consumes
 > its frozen **[`/spot/api/1` machine API](https://github.com/felipedbene/gopher-spot/blob/main/API.md)**;
 > the client half is [fio 10](#the-full-radinho-fio-10).
+>
+> **Radinho siblings** — the same `/spot/api/1` client pattern, ported down the
+> vintage ladder: **[DeGelato](https://github.com/felipedbene/degelato)** (Sorbet
+> Leopard 10.5 / PowerPC) and **[Casquinha](https://github.com/felipedbene/casquinha)**
+> (Mac OS 9.2 / classic Toolbox — the oldest machine yet). The recipe all three
+> follow is [**fhb ▸ CLIENT-PATTERN.md**](https://github.com/felipedbene/fhb/blob/main/CLIENT-PATTERN.md).
 
 ## Building
 

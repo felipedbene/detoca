@@ -148,10 +148,10 @@ static NSArray *ThreeItems(void)
 {
     // The real gopher-spot /spot/stream.pls.
     NSString *pls = @"[playlist]\nNumberOfEntries=1\n"
-                    @"File1=http://10.0.100.113:8000/spotify.mp3\n"
+                    @"File1=http://stream.example.com:8000/spotify.mp3\n"
                     @"Title1=gopher-spot\nLength1=-1\nVersion=2\n";
     STAssertEqualObjects([PLSParser firstURLFromPlaylistText:pls],
-                         @"http://10.0.100.113:8000/spotify.mp3", @"PLS File1");
+                         @"http://stream.example.com:8000/spotify.mp3", @"PLS File1");
 }
 
 - (void)testPLSPrefersLowestIndex

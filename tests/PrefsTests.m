@@ -48,7 +48,7 @@
     STAssertFalse([DTServerPrefs isValidHost:@""], @"empty host invalid");
     STAssertFalse([DTServerPrefs isValidHost:@"   "], @"whitespace host invalid");
     STAssertTrue([DTServerPrefs isValidHost:@"gopher.debene.dev"], @"host valid");
-    STAssertTrue([DTServerPrefs isValidHost:@"  10.0.100.112  "], @"trimmed host valid");
+    STAssertTrue([DTServerPrefs isValidHost:@"  gopher.example.com  "], @"trimmed host valid");
 }
 
 - (void)testPortValidation

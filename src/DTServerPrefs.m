@@ -8,7 +8,7 @@
 NSString * const DTSpotHostKey = @"DTSpotHost";
 NSString * const DTSpotPortKey = @"DTSpotPort";
 
-#define DT_SPOT_DEFAULT_HOST @"10.0.100.112"
+#define DT_SPOT_DEFAULT_HOST @"gopher.example.com"
 #define DT_SPOT_DEFAULT_PORT 70
 
 @implementation DTServerPrefs

@@ -85,7 +85,7 @@ Two layers, cleanly separated:
 | `PLSParser` | Extracts the first stream URL from a PLS/M3U playlist (pure Foundation, unit-tested). |
 | `StreamPlayerController` | Singleton dark HUD `NSPanel`. Two modes: QTKit finite-file queue (fio 2) and a live-stream mode (fio 5). Never imports the parser or gopher. |
 | `DTAudioStreamer` | Live MP3 streaming via `AudioFileStream` + `AudioQueue` on a dedicated thread — what QTKit cannot do. Foundation + AudioToolbox, no AppKit. |
-| `GopherSpotControl` | The gopher side of gopher-spot: resolves the `.pls`, is the player's `StreamControlDelegate` (transport → `/spot/control/*`), polls `/spot/now`, and drives the radinho's embedded browser (search + drill-down + play). |
+| `AppDelegate` (gopher side) | The gopher side of gopher-spot (fio 5/6): resolves the `.pls`, implements the player's `StreamControlDelegate` (transport → `/spot/control/*`), polls `/spot/now`, and drives the radinho's embedded browser (search + drill-down + play). There is no separate class — the player stays gopher-agnostic and the role lives on the `AppDelegate`. The modern fio 9/10 player is driven instead by the `/spot/api/1` machine API via `DTSpotAPI` (below). |
 | `GopherMenuView` | Reusable dark-theme Gopher menu list (scroll view + table + cell recipe + activation delegate). Used by both the menu windows and the radinho browser. |
 | `SpotSelectors` | Pure-Foundation helper: is a selector a gopher-spot "play" action (`/spot/play?…`, `…/control/play`) vs. drill-down? Unit-tested. |
 
@@ -200,14 +200,15 @@ AudioToolbox is on 10.5, so this stays fio-3 friendly.
 
 gopher-spot is dual-plane: one persistent Icecast audio stream plus a gopher
 **control plane**. Activating a type-`s` item resolves the `.pls` over gopher,
-plays the stream, and wires the panel to the control plane via
-`GopherSpotControl` (derived by convention from the stream selector's parent —
-`/spot/stream.pls` → `/spot/control/{play,pause,next,prev}`, `/spot/now`):
+plays the stream, and wires the panel to the control plane via the
+`AppDelegate`'s gopher-spot control (derived by convention from the stream
+selector's parent — `/spot/stream.pls` → `/spot/control/{play,pause,next,prev}`,
+`/spot/now`):
 
 - The radinho's transport buttons fire gopher `/spot/control/*` requests (so
   Next skips the upstream Spotify), and the now-playing title is polled from
   `/spot/now`. The player itself stays gopher-agnostic — all gopher knowledge
-  lives in `GopherSpotControl`, which is just the player's `StreamControlDelegate`.
+  lives in the `AppDelegate`, which is the player's `StreamControlDelegate`.
 - Playback survives closing the browser window; closing the panel stops it.
 
 ### The radinho as a gopher-spot menu (fio 6)
@@ -221,8 +222,8 @@ gopher-spot-specific hook: activating a **play** selector (`/spot/play?…` or
 `…/control/play`, detected by `SpotSelectors`) ensures the local stream is
 playing so you hear it. Search sends `/spot/search␉query`; artists/albums/tracks
 drill down to their detail pages; `>> Tocar agora` plays. The player stays
-gopher-agnostic — it only hosts an opaque browse view; all gopher logic lives in
-`GopherSpotControl`.
+gopher-agnostic — it only hosts an opaque browse view; all gopher logic lives on
+the `AppDelegate`.
 
 ### The Radinho is the star (fio 7)
 

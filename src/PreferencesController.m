@@ -72,7 +72,7 @@ static NSTextField *MakeLabel(NSRect frame, NSString *text, BOOL bold)
     [content addSubview:hostLabel];
 
     _hostField = [[DTTheme darkFieldWithFrame:NSMakeRect(70, 250, 296, 24)] retain];
-    [[_hostField cell] setPlaceholderString:@"10.0.100.112"];
+    [[_hostField cell] setPlaceholderString:@"gopher.example.com"];
     [_hostField setDelegate:self];
     [content addSubview:_hostField];
 

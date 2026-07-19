@@ -98,7 +98,7 @@ fails to load moves the queue forward without any alert.
       streams use CoreAudio.
 
 Verified on the 10.6.8 target against real gopher-spot
-(`gopher://10.0.100.112:70`, Icecast at `10.0.100.113:8000`): `DTAudioStreamer`
+(`gopher://gopher.example.com:70`, Icecast at `stream.example.com:8000`): `DTAudioStreamer`
 reaches sustained playback of the live stream (CoreAudio, where QTKit errored);
 the radinho plays in stream mode with a live clock; the `Next` button fired
 `/spot/control/next` and the now-playing title changed ("Dilemma" → "Rich
@@ -140,7 +140,7 @@ Preferences (mostly driven over SSH via UI scripting + `screencapture`):
 - [ ] **Save reconnects** — change the host/port and Save: the radinho tears down
       and reconnects to the new backend (same as Cmd-R).
 
-Media keys — **hardware validation (Felipe, at the MacBook2,1):**
+Media keys — **hardware validation (the operator, at the MacBook2,1):**
 
 - [ ] **⏯ toggles** — with the radinho live, the play/pause key pauses/resumes
       (and the transport mirrors upstream).
@@ -164,14 +164,14 @@ Verified over SSH on the 10.6.8 target (agent-permitting):
   "assistive devices" toggle; app launches and quits cleanly.
 - Preferences window renders correctly (screenshot): Server section with the real
   host/port, Test/Save buttons, divider, Document Font section — no clipping.
-- gopher-spot root (`10.0.100.112:70`) is reachable over the app's socket path
+- gopher-spot root (`gopher.example.com:70`) is reachable over the app's socket path
   (`spikeb`), the substrate Test Connection uses.
 
 ### The player + playlist (fio 9)
 
 Data layer is unit-tested (`SpotAPITests`: parser, snapshot, interpolation). The
-rest is driven over SSH against the live API (`10.0.100.112:70`) + `screencapture`;
-the physical double-click and media keys are Felipe's manual gate.
+rest is driven over SSH against the live API (`gopher.example.com:70`) + `screencapture`;
+the physical double-click and media keys are the operator's manual gate.
 
 - [ ] **Player reflects the API** — with a track playing, the window shows
       "track — artist" (amber), album, duration, and the **seek bar advances**
@@ -209,7 +209,7 @@ Verified over SSH on the 10.6 target (agent-permitting):
 
 Data layer unit-tested (`SpotAPITests`: track/playlist list parsing incl. empty +
 UTF-8, the monotonic-ts guard, `/now` album_id + device, cover cache key). The
-rest driven over SSH against the live API (`10.0.100.112:70`) + `screencapture`.
+rest driven over SSH against the live API (`gopher.example.com:70`) + `screencapture`.
 
 Verified over SSH on the 10.6 target:
 
@@ -223,7 +223,7 @@ Verified over SSH on the 10.6 target:
 - Wire formats match: now/queue/search/playlists; `/cover` returns JPEG (`FF D8`)
   and a bad size returns a text error; `wake?play=1` returns a valid `/now`.
 
-Manual gate (Felipe, at the MacBook2,1 — SSH can't synthesize a real key-window
+Manual gate (the operator, at the MacBook2,1 — SSH can't synthesize a real key-window
 text entry / double-click / device handoff):
 
 - [ ] **Cover by eye + disk** — watch the cover change as tracks change; then

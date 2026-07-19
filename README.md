@@ -1,5 +1,12 @@
 # DeToca
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) ![Platform](https://img.shields.io/badge/Mac%20OS%20X-10.6-black.svg) ![Lang](https://img.shields.io/badge/Cocoa-Objective--C-555.svg)
+
+<img src="design/icon-amber-gopher.png" alt="DeToca icon" width="128">
+
+> 📸 _Screenshot coming soon — DeToca on Mac OS X 10.6 (Snow Leopard)._
+<!-- When you capture one, replace the line above with: ![DeToca on 10.6](design/screenshot.png) -->
+
 A modern Gopher client for **Mac OS X 10.6 Snow Leopard** (MacBook2,1 /
 Xcode 3.2.6 / GCC 4.2 / 10.6 SDK). The desktop sibling of DeBurrow (Android),
 built for the debene gopherspace (`gopher.debene.dev:70`) and the wider Gopher
@@ -363,3 +370,10 @@ from a different source, regenerate the `.iconset` and run `iconutil -c icns`.
 
 Cascadia Code is bundled under the SIL Open Font License 1.1
 (`Resources/OFL.txt`).
+
+---
+### Part of the gopher constellation
+**Servers & tools:** [gopher-core](https://github.com/felipedbene/gopher-core) · [gopher-cta](https://github.com/felipedbene/gopher-cta) · [gopher-blog](https://github.com/felipedbene/gopher-blog) · [gopher-askthedeck](https://github.com/felipedbene/gopher-askthedeck) · [gopher-spot](https://github.com/felipedbene/gopher-spot) · [the-economist-epub](https://github.com/felipedbene/the-economist-epub)
+**Clients:** [casquinha](https://github.com/felipedbene/casquinha) (Mac OS 9) · [detoca](https://github.com/felipedbene/detoca) (OS X 10.6) · [degelato](https://github.com/felipedbene/degelato) (OS X 10.5 PPC) · [deburrow](https://github.com/felipedbene/deburrow) (Android)
+**Protocol notes:** [fhb](https://github.com/felipedbene/fhb)
+---

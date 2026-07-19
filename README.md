@@ -4,8 +4,16 @@
 
 <img src="design/icon-amber-gopher.png" alt="DeToca icon" width="128">
 
-> 📸 _Screenshot coming soon — DeToca on Mac OS X 10.6 (Snow Leopard)._
-<!-- When you capture one, replace the line above with: ![DeToca on 10.6](design/screenshot.png) -->
+![DeToca on Mac OS X 10.6 (Snow Leopard) — the player, a Gopher window on gopher.debene.dev, and the live ANSI CTA map](design/screenshot.png)
+
+<details>
+<summary><b>🕵️ Yes, it's a real Mac OS X 10.6.8 machine — proof</b></summary>
+
+*About This Mac* on the actual MacBook2,1: **Mac OS X 10.6.8**, 2 GHz Intel Core 2 Duo, 2 GB DDR2.
+
+![About This Mac — Mac OS X 10.6.8 on a 2 GHz Intel Core 2 Duo MacBook2,1](design/proof-real-106.png)
+
+</details>
 
 A modern Gopher client for **Mac OS X 10.6 Snow Leopard** (MacBook2,1 /
 Xcode 3.2.6 / GCC 4.2 / 10.6 SDK). The desktop sibling of DeBurrow (Android),
